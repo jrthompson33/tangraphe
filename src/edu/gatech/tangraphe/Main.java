@@ -42,7 +42,7 @@ public class Main extends Application {
     private static WebEngine mWebEngine;
 
     // TODO update this with RSKETCH_HOME and create file name from that
-    private static final String mHtmlFilePath = Paths.get(".", "html", "index.html").toUri().toString();
+    private static final String mHtmlFilePath = Paths.get(".", "hp", "index.html").toUri().toString();
 
     @Override
     public void start(Stage primaryStage) throws Exception{
