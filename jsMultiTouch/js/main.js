@@ -8,7 +8,11 @@
     main = {};
     data = {};
 
-    var chart, svg, height, width, swipe, press;
+    var chart, svg, height, width, swipe, press, tick;
+
+    var moveThreshold = 9;
+    var longPressThreshold = 15;
+    var longPressTimeout = 350;
 
     main.graph = {
         "nodes":[
@@ -49,14 +53,6 @@
         // Load the data after we've set up the vis
         main.loadData(params);
 
-        // Initialize all of the helper tools for the visualization
-        tool.init(params);
-
-        // Have the relevant tools draw the visualization
-        tool.draw(params);
-
-
-
         tick = function() {
             link.attr("x1", function(d) { return d.source.x; })
                 .attr("y1", function(d) { return d.source.y; })
@@ -67,103 +63,132 @@
                 .attr("cy", function(d) { return d.y; });
           };
 
-    var color = d3.scale.category20();
+        var color = d3.scale.category20();
 
-    var force = d3.layout.force()
-        .charge(-120)
-        .linkDistance(500)
-        .size([width, height]);
+        var force = d3.layout.force()
+            .charge(-120)
+            .linkDistance(500)
+            .size([width, height]);
 
 
-      force.nodes(main.graph.nodes)
-          .links(main.graph.links)
-          .start();
+        force.nodes(main.graph.nodes)
+            .links(main.graph.links)
+            .start();
 
-  var link = svg.selectAll(".link")
-      .data(main.graph.links)
-    .enter().append("line")
-      .attr("class", "link")
-      .attr('id', function(d){ return d.source.name+'-'+d.target.name})
-      .style("stroke-width", function(d) { return Math.sqrt(d.value); });
+        var link = svg.selectAll(".link")
+            .data(main.graph.links)
+            .enter().append("line")
+            .attr("class", "link")
+            .attr('id', function(d){ return d.source.name+'-'+d.target.name})
+            .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
-  var node = svg.selectAll(".node")
-      .data(main.graph.nodes)
-    .enter().append("circle")
-      .attr("class", "node")
-      .attr("r", 50)
-      .style("fill", function(d) { return color(d.group); })
-      .call(force.drag);
+        var node = svg.selectAll(".node")
+            .data(main.graph.nodes)
+            .enter().append("circle")
+            .attr("class", "node")
+            .attr("r", 50)
+            .style("fill", function(d) { return color(d.group); })
+            .call(force.drag);
 
-  node.append("title")
-      .text(function(d) { return d.name; });
+        node.append("title")
+            .text(function(d) { return d.name; });
 
-  force.on("tick", tick);  
+        force.on("tick", tick);
 
-    var myElement = document.getElementById("vis");
-    var hammertime = new Hammer(myElement);
-    hammertime.on("hammer.input", function(ev) {
-        if(ev.pointerType=="touch"){
-            px = ev.pointers[0].clientX
-            py = ev.pointers[0].clientY
-            if (ev.isFirst) {
-                if(swipe) {
-                    if (swipe.type === 'single') {
-                        swipe.selection.css('stroke', '#ccc').css('stroke-width', '1');
-                        $('#menu').remove();
-                    }
-                    
-                }
-                swipe = {selection: $([]), points: []};
-                if(ev.pointers.length == 1) {
-                    swipe.type = 'single';
-                } else {
-                    swipe.type = 'multi';
-                }
-            } 
-            if (ev.isFinal) {
-                var linkIds = getPassThroughLinks(swipe.points[0],{x:px,y:py});
-                $(linkIds).css('stroke', '#f00').css('stroke-width', '2');
-                swipe.selection = swipe.selection.add($(linkIds));
-                if(ev.pointers.length > 1) {
-                    swipe.type = 'multi';
-                }
-                if(swipe.type === 'single') {
-                    svg.append('circle')
-                        .attr('id', 'menu')
-                        .attr('cx', ev.pointers[0].clientX)
-                        .attr('cy', ev.pointers[0].clientY)
-                        .attr('r', '20')
-                        .attr('fill', '#333')
-                        .attr('opacity', '0.7');
-                        console.log('reached!')
-                }
+        var hammertime = new Hammer(document.getElementById("vis"));
 
-                
-            } else {
-                if(ev.pointers.length > 1) {
-                    swipe.type = 'multi';
-                }
-
+        hammertime.on("hammer.input", function(ev) {
+            if (ev.pointerType == "touch") {
+                main.handleTouchEvent(ev);
             }
-            if(swipe) swipe.points.push({x: px, y: py});
-            var e = document.elementFromPoint(px,py);
-            // console.log(e);
-            if(swipe && swipe.type === 'single') {
-                if(hasClass(e, 'link')) {
-                    $(e).css('stroke', '#f00').css('stroke-width', '2');
-                    swipe.selection = swipe.selection.add($(e));
-                }
-            } else if(swipe && swipe.type === 'multi') {
-
-            }
-        }
-    });
+        });
     
-    hammertime.on("tap",function(e){
-        console.log("tap")
-    });    
+        hammertime.on("tap",function(e){
+            console.log("tap")
+        });
 
     };
+
+    main.handleTouchEvent = function(event) {
+        var px = event.center.x;
+        var py = event.center.y;
+
+        if(event.isFirst) {
+            // Handle if this is a new touch event - clear off the vis
+            handleNewTouch(event);
+
+            // Create a new press object to handle this event stream
+            press = {time: event.timestamp, centers: [event.center], events: [event], touches: event.pointers.length};
+            if(event.pointers.length == 1) {
+                handleSinglePressEvent(event);
+            } else {
+                handleMultiPressEvent(event);
+            }
+        } else {
+            // Check if this event moved enough, then start a swipe
+            if(!swipe && event.distance > moveThreshold) {
+                swipe = {time: event.timestamp, centers: press.centers.push(event.center), events: press.events.push(event), touches: event.pointers.length};
+            }
+            if (swipe) {
+                swipe.time = event.timestamp;
+                swipe.centers.push(event.center);
+                swipe.events.push(event);
+                // Always take the greater of the two
+                // if a swipe starts out as one finger but ends as two we want it to be a double swipe
+                swipe.touches = swipe.touches > event.pointers.length ? swipe.touches : event.pointers.length;
+                // TODO handle a switch so that we override any events that were triggered from a different swipe
+                if(swipe.touches == 1) {
+                    handleSingleSwipeEvent(event);
+                } else if (swipe.touches == 2){
+                    handleDoubleSwipeEvent(event);
+                } else if (swipe.touches == 3) {
+                    handleTripleSwipeEvent(event);
+                } else {
+                    handleHandSwipeEvent(event);
+                }
+            } else {
+                press.time = event.timestamp;
+                press.centers.push(event.center);
+                press.events.push(event);
+                // Always take the greater of the two
+                // if a press starts out as one finger but ends as two we want it to be a double press
+                press.touches = press.touches > event.pointers.length ? press.touches : event.pointers.length;
+                if(press.touches == 1) {
+                    handleSinglePressEvent(event);
+                } else {
+                    handleMultiPressEvent(event);
+                }
+            }
+        }
+    };
+
+    function handleNewTouch(event) {
+
+    }
+
+    function handleSinglePressEvent(event) {
+
+    }
+
+    function handleMultiPressEvent(event) {
+
+    }
+
+    function handleSingleSwipeEvent(event) {
+
+    }
+
+    function handleDoubleSwipeEvent(event) {
+
+    }
+
+    function handleTripleSwipeEvent(event) {
+
+    }
+
+    function handleHandSwipeEvent(event) {
+
+    }
 
     function getPassThroughLinks(p1,p2) {
         var select = '';
@@ -174,40 +199,6 @@
         });
         return select.length > 0 ? select.substring(0, select.length-2) : '';
     }
-
-    function lineIntersect(x1,y1,x2,y2, x3,y3,x4,y4) {
-        var x=((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
-        var y=((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
-        if (isNaN(x)||isNaN(y)) {
-            return false;
-        } else {
-            if (x1>=x2) {
-                if (!(x2<=x&&x<=x1)) {return false;}
-            } else {
-                if (!(x1<=x&&x<=x2)) {return false;}
-            }
-            if (y1>=y2) {
-                if (!(y2<=y&&y<=y1)) {return false;}
-            } else {
-                if (!(y1<=y&&y<=y2)) {return false;}
-            }
-            if (x3>=x4) {
-                if (!(x4<=x&&x<=x3)) {return false;}
-            } else {
-                if (!(x3<=x&&x<=x4)) {return false;}
-            }
-            if (y3>=y4) {
-                if (!(y4<=y&&y<=y3)) {return false;}
-            } else {
-                if (!(y3<=y&&y<=y4)) {return false;}
-            }
-        }
-        return true;
-    }
-
-    function hasClass(elem, cls) {
-        return (' ' + ((elem.className instanceof SVGAnimatedString) ? elem.className.baseVal : elem.className) + ' ').indexOf(' ' + cls + ' ') > -1;
-    };
 
     main.loadData = function(params) {
         // Load data for the visualization here
