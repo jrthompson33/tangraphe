@@ -126,7 +126,9 @@
             // } else {
             //     handleMultiPressEvent(event);
             // }   
-            console.log("touch down")         
+            
+
+            // console.log("touch down")         
         } else {
             // Check if this event moved enough, then start a swipe
             if(!swipe && event.distance > moveThreshold) { // TODO: check the 2nd condition since it is invoking a touchend event (2nd case below) at the start of two-finger swipe
@@ -135,7 +137,8 @@
                 swipe = {time: event.timeStamp, centers: press.centers, events: press.events, touches: event.pointers.length};
             }
             if (swipe) {
-                console.log("swipe")
+                
+                // console.log("swipe")
                 swipe.time = event.timestamp;
                 swipe.centers.push(event.center);
                 swipe.events.push(event);
@@ -157,7 +160,8 @@
                     handleHandSwipeEvent(event);
                 }
             } else {
-                console.log("touch up")
+                
+                // console.log("touch up")
                 tapCount += 1;        
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(function() {
@@ -182,11 +186,19 @@
     }
 
     function handleSinglePressEvent(event) {
-        console.log(event)
+        var e = document.elementFromPoint(event.center.x,event.center.y);            
         if(tapCount==1){
-            console.log("single")
+            console.log("handle single here")
+            if(hasClass(e, 'node')) {
+                console.log("on node")
+            }
         }else{
-            console.log("double",tapCount)            
+            if(tapCount==2){
+                console.log("handle double here")            
+                if(hasClass(e, 'node')) {
+                    console.log("on node")
+                }
+            }            
         }
         tapCount = 0;
     }
