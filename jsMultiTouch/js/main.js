@@ -14,7 +14,8 @@
     var longPressThreshold = 15;
     var longPressTimeout = 350;
     var viewCenter = {x:0,y:0};
-
+    var viewZoom = 1;
+    var zoomScale = d3.scale.linear().domain([0,1]).range([1,8]);    
 
     main.graph = {
         "nodes":[
@@ -137,8 +138,8 @@
                 // Always take the greater of the two
                 // if a swipe starts out as one finger but ends as two we want it to be a double swipe
 
-                // WHAT HAPPENS WHEN WE GO FROM TWO FINGERS TO ONE? this condition sets swipe.touches to 2 in that case.
-                swipe.touches = swipe.touches > event.pointers.length ? swipe.touches : event.pointers.length;
+                // WHAT HAPPENS WHEN WE GO FROM TWO FINGERS TO ONE? this condition sets swipe.touches to 2 in that case. This is causing the jump at the end of a pan event.
+                swipe.touches = event.pointers.length;//swipe.touches > event.pointers.length ? swipe.touches : event.pointers.length;
                 
 
                 // TODO handle a switch so that we override any events that were triggered from a different swipe
@@ -183,29 +184,44 @@
 
     }
 
-    function handleDoubleSwipeEvent(event) {        
-
+    function handleDoubleSwipeEvent(event) { // ISSUE: both events are always triggered together (might need to re-think about these interactions).
         var curPointX = event.center.x;
         var curPointY = event.center.y;
+        var curScale = event.scale;
+
         var swipePointsLength = swipe.centers.length;
-        var prevPointX,prevPointY;
+        var prevPointX,prevPointY, prevScale;
         if(swipePointsLength<2){
             prevPointX = swipe.centers[swipePointsLength-1].x;
             prevPointY = swipe.centers[swipePointsLength-1].y;
+            prevScale = swipe.events[swipePointsLength-1].scale;
         }else{
             prevPointX = swipe.centers[swipePointsLength-2].x;
             prevPointY = swipe.centers[swipePointsLength-2].y;
+            prevScale = swipe.events[swipePointsLength-2].scale;
         }
         var deltaY = curPointY-prevPointY;
         var deltaX = curPointX-prevPointX;
-        
+
         if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
            swipe = null;
         }
 
+
+        var point1 = event.pointers[0];
+        var point2 = event.pointers[1];        
+        var zoomDelta = curScale-prevScale;;
+        if(zoomDelta>0){
+            console.log("pinch out");
+        }else{
+            console.log("pinch in");
+        }
+        //console.log(event.pointers.length)
+        viewZoom += zoomDelta;
         viewCenter.x += deltaX;
-        viewCenter.y += deltaY;                    
-        container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
+        viewCenter.y += deltaY;        
+        // container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
+        // container.attr("transform","scale("+zoomScale(viewZoom)+")")
     }
 
     function handleTripleSwipeEvent(event) {
