@@ -125,9 +125,7 @@
             //     handleSinglePressEvent(event);
             // } else {
             //     handleMultiPressEvent(event);
-            // }   
-            
-
+            // }            
             // console.log("touch down")         
         } else {
             // Check if this event moved enough, then start a swipe
@@ -189,6 +187,12 @@
         var e = document.elementFromPoint(event.center.x,event.center.y);            
         if(tapCount==1){
             console.log("handle single here")
+            console.log(press.events[1].timeStamp-press.events[0].timeStamp)
+            if((press.events[1].timeStamp-press.events[0].timeStamp)>125){
+                console.log("long press")
+            }else{
+                console.log("tap")
+            }
             if(hasClass(e, 'node')) {
                 console.log("on node")
             }
