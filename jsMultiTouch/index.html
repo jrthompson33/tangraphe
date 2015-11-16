@@ -14,12 +14,12 @@
 </head>
 <body>  
 <div class="container-fluid">
-    <nav class="navbar navbar-default">
-        <div class="container-fluid">
+<!--     <nav class="navbar navbar-default">
+        <div class="container-fluid"> -->
             <!--<div class="navbar-header">-->
                 <!--<a class="navbar-brand" href="#"><img width="30px" height="30px" src="logo.png" style="float:left"></a>-->
             <!--</div>-->
-            <div class="navbar-right">
+<!--             <div class="navbar-right">
                 <ul class="nav nav-pills">
                     <li id="nav-action-1" role="presentation" class="active"><a href="#">Action 1</a></li>
                     <li id="nav-action-2" role="presentation"><a href="#">Action 2</a></li>
@@ -27,7 +27,7 @@
             </div>
         </div>
     </nav>
-
+ -->
     <div class="col-md-12 col-lg-12 panel">
         <div id="vis" class="content">
 
@@ -43,11 +43,11 @@
 <script src="js/vendor/hammer.min.js"></script>
 <script src="js/main.js"></script>
 <script src="js/classes.js"></script>
-<script src="js/tool.js"></script>
+<script src="js/utils.js"></script>
 <script>
     $(window).on("resize load", main.resizeWindow);
 
-    var h = $(window).height();
+    var h = $(window).height() - 75;
     var w = $('#vis').width();
     $('#main').height(h).width(w);
 

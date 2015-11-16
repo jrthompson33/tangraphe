@@ -8,11 +8,13 @@
     main = {};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick;
+    var chart, svg, height, width, swipe, press, tick, container;
 
     var moveThreshold = 9;
     var longPressThreshold = 15;
     var longPressTimeout = 350;
+    var viewCenter = {x:0,y:0};
+
 
     main.graph = {
         "nodes":[
@@ -75,14 +77,16 @@
             .links(main.graph.links)
             .start();
 
-        var link = svg.selectAll(".link")
+
+        container = svg.append("g");
+        var link = container.selectAll(".link")
             .data(main.graph.links)
             .enter().append("line")
             .attr("class", "link")
             .attr('id', function(d){ return d.source.name+'-'+d.target.name})
             .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
-        var node = svg.selectAll(".node")
+        var node = container.selectAll(".node")
             .data(main.graph.nodes)
             .enter().append("circle")
             .attr("class", "node")
@@ -101,10 +105,6 @@
             if (ev.pointerType == "touch") {
                 main.handleTouchEvent(ev);
             }
-        });
-    
-        hammertime.on("tap",function(e){
-            console.log("tap")
         });
 
     };
@@ -127,7 +127,9 @@
         } else {
             // Check if this event moved enough, then start a swipe
             if(!swipe && event.distance > moveThreshold) {
-                swipe = {time: event.timestamp, centers: press.centers.push(event.center), events: press.events.push(event), touches: event.pointers.length};
+                press.centers.push(event.center);
+                press.events.push(event);
+                swipe = {time: event.timestamp, centers: press.centers, events: press.events, touches: event.pointers.length};
             }
             if (swipe) {
                 swipe.time = event.timestamp;
@@ -179,7 +181,20 @@
     }
 
     function handleDoubleSwipeEvent(event) {
+        var curPointX = event.center.x;
+        var curPointY = event.center.y;
+        var swipePointsLength = swipe.centers.length;
+        var prevPointX = swipe.centers[swipePointsLength-2].x;
+        var prevPointY = swipe.centers[swipePointsLength-2].y;
+        var deltaY = curPointY-prevPointY;
+        var deltaX = curPointX-prevPointX;
 
+        viewCenter.x += deltaX;
+        viewCenter.y += deltaY;                    
+        
+        console.log(swipePointsLength)
+        // console.log(deltaX,deltaY)
+        container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
     }
 
     function handleTripleSwipeEvent(event) {
