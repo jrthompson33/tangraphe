@@ -183,11 +183,7 @@
 
     }
 
-    function handleDoubleSwipeEvent(event) {
-
-        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
-            swipe.centers = [];
-        }
+    function handleDoubleSwipeEvent(event) {        
 
         var curPointX = event.center.x;
         var curPointY = event.center.y;
@@ -202,6 +198,10 @@
         }
         var deltaY = curPointY-prevPointY;
         var deltaX = curPointX-prevPointX;
+        
+        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+           swipe = null;
+        }
 
         viewCenter.x += deltaX;
         viewCenter.y += deltaY;                    
