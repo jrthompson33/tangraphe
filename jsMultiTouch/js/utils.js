@@ -251,3 +251,11 @@ function svgRemoveClass(selector, cls) {
         }
     });
 }
+
+function getDistanceBetweenPoints(p1,p2){
+    x1 = p1.x;
+    x2 = p2.x;
+    y1 = p1.y;
+    y2 = p2.y;
+    return Math.sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
+}

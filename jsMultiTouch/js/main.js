@@ -9,10 +9,10 @@
     main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer;
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer ,panThreshold = 0, pinchThreshold =0;
 
     var nodeG, linkG, menuG;
-    var twoFingerSwipeStartCenter = null;
+    var startDistance = null;
 
     var moveThreshold = 9;
     var swipeReduceTime = 10;
@@ -307,14 +307,21 @@
     }
 
     function handleDoubleSwipeEvent(event) { // ISSUE: both events are always triggered together (might need to re-think about these interactions).
+        if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+           eventCleanup();
+           console.log("two finger swipe end")
+           return;
+        }
+        if(event.pointers.length!=2){
+            return;
+        }
         var curPointX = event.center.x;
         var curPointY = event.center.y;
         var curScale = event.scale;
-        if(twoFingerSwipeStartCenter == null){
-            twoFingerSwipeStartCenter = {x:curPointX,y:curPointY};
-        }
-
+        
         var swipePointsLength = swipe.centers.length;
+        
+
         var prevPointX,prevPointY, prevScale;
         if(swipePointsLength<2){
             prevPointX = swipe.centers[swipePointsLength-1].x;
@@ -326,12 +333,7 @@
             prevScale = swipe.events[swipePointsLength-2].scale;
         }
         var deltaY = curPointY-prevPointY;
-        var deltaX = curPointX-prevPointX;
-
-        if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
-           eventCleanup();
-           console.log("two finger swipe end")
-        }
+        var deltaX = curPointX-prevPointX;        
 
 
         var point1 = event.pointers[0];
@@ -350,16 +352,42 @@
             // console.log("pinch in");
         }
         // console.log(event)
-        if(twoFingerSwipeStartCenter!=null){
-            if((Math.abs(event.center.x-twoFingerSwipeStartCenter.x) < 10) && (Math.abs(event.center.y-twoFingerSwipeStartCenter.y) < 10)){        
-                // console.log("pinch")
+        // (Math.abs(event.center.x-twoFingerSwipeStartCenter.x) < 10) && (Math.abs(event.center.y-twoFingerSwipeStartCenter.y) < 10)
+        var pt1 = {x:event.pointers[0].clientX,y:event.pointers[0].clientY};
+        var pt2 = {x:event.pointers[1].clientX,y:event.pointers[1].clientY};
+        var d = getDistanceBetweenPoints(pt1,pt2);
+
+       
+        var movementFromCenter = getDistanceBetweenPoints(event.center,swipe.centers[0]);
+            if(Math.abs(movementFromCenter)>=3){
+                console.log("pan")
             }else{
-                // console.log("pan")            
+                console.log("pinch")
             }
-        }        
+            // panThreshold += 1;
+            // console.log("pan")
+        // }else{
+            // console.log(panThreshold)
+            // if(panThreshold>15)
+            // {
+            //     pinchThreshold += 1;
+            // }            
+            // console.log("pinch")
+        // }        
+        // if(pinchThreshold>0){
+        //     console.log("pinch")
+        // }else{
+        //     console.log("pan")
+        // }
+        // if(){        
+            // console.log("pinch")
+        // }else{
+            // console.log("pan")            
+        // }
+
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
-        // graphContainer.attr("transform","scale("+zoomScale(viewZoom)+")")
+        // graphContainer.attr("transform","scale("+zoomScale(viewZoom)+")")        
     }
 
     function handleTripleSwipeEvent(event) {
@@ -428,8 +456,11 @@
     function eventCleanup() {
         swipe = null;
         press = null;
-        twoFingerSwipeStartCenter = null;           
+        startDistance = null;           
+        panThreshold = 0;
+        pinchThreshold = 0;
         tapCount = 0;
+        startCenter = null;
     }
 
     function dismissContextMenu(){
