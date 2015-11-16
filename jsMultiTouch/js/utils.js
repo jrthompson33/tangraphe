@@ -100,76 +100,72 @@ function isCircleInPoly(poly, pt, r) {
     return false;
 }
 
-/**
- * Doulgas-Peucker polyline reduction algorithm
- * @param points
- * @returns {Array} array of reduced points
- */
-function pointReduction(points) {
-    var tolerance = 3;
+// square distance between 2 points
+function getSqDist(p1, p2) {
 
-    var marked = Array.apply(null, Array(points.length)).map(Number.prototype.valueOf,0);
-    marked[0] = 1;
-    marked[points.length-1] = 1;
+    var dx = p1.x - p2.x,
+        dy = p1.y - p2.y;
 
-    decimate(tolerance, points, 0, points.length-1, marked);
-
-    var reduced = [];
-    for(var i = 0; i < points.length; i++) {
-        if(marked[i] == 1) {
-            reduced.push(points[i]);
-        }
-    }
-    return reduced;
+    return dx * dx + dy * dy;
 }
 
-function decimate(t,points,j,k,mk) {
-    if(k <= j+1) {
-        return;
-    }
+// square distance from a point to a segment
+function getSqSegDist(p, p1, p2) {
 
-    // Index of vertex farthest from S
-    var maxI = j;
-    // distance squared of farthest vertex
-    var maxD2 = 0;
-    // tolerance squared
-    var tol2 = t*t;
-    // Segment from j to k
-    var s0 = points[j], s1 = points[k];
-    // Segment direction
-    var u = new Vector(s1.x-s0.x,s1.y-s0.y);
-    // Segment length squared
-    var cu = u.dot(u);
+    var x = p1.x,
+        y = p1.y,
+        dx = p2.x - x,
+        dy = p2.y - y;
 
-    // test each vertex v[i] for max distance from S
-    var w;
-    var p;
-    var b,cw,dv2;
+    if (dx !== 0 || dy !== 0) {
 
-    for (var i = j+1; i < k; i++) {
-        w = new Vector(points[i].x-s0.x,points[i].y-s0.x);
-        cw = w.dot(u);
-        if(cw <= 0) {
-            dv2 = (new Vector(points[i].x-s0.x, points[i].y-s0.y)).norm2();
-        } else if (cu <= cw) {
-            dv2 = (new Vector(points[i].x-s1.x, points[i].y-s1.y)).norm2();
-        } else {
-            b = cw/cu;
-            p = {x:s0.x+b*u.x,y:s0.y+b*u.y};
-            dv2 = (new Vector(points[i].x-p.x,points[i].y-p.y)).norm2();
+        var t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+
+        if (t > 1) {
+            x = p2.x;
+            y = p2.y;
+
+        } else if (t > 0) {
+            x += dx * t;
+            y += dy * t;
         }
+    }
 
-        if (dv2 <= maxD2) continue;
-        maxI = i;
-        maxD2 = dv2;
+    dx = p.x - x;
+    dy = p.y - y;
+
+    return dx * dx + dy * dy;
+}
+
+function simplifyDPStep(points, first, last, sqTolerance, simplified) {
+    var maxSqDist = sqTolerance,
+        index;
+
+    for (var i = first + 1; i < last; i++) {
+        var sqDist = getSqSegDist(points[i], points[first], points[last]);
+
+        if (sqDist > maxSqDist) {
+            index = i;
+            maxSqDist = sqDist;
+        }
     }
-    if (maxD2 > tol2) {
-        // split the polyline at the farthest vertex from S
-        mk[maxI] = 1;
-        // recursively decimate the two subpolylines at v[maxI]
-        decimate(t,points,j,maxI,mk);
-        decimate(t,points,maxI,k,mk);
+
+    if (maxSqDist > sqTolerance) {
+        if (index - first > 1) simplifyDPStep(points, first, index, sqTolerance, simplified);
+        simplified.push(points[index]);
+        if (last - index > 1) simplifyDPStep(points, index, last, sqTolerance, simplified);
     }
+}
+
+// simplification using Ramer-Douglas-Peucker algorithm
+function pointReduction(points) {
+    var last = points.length - 1;
+
+    var simplified = [points[0]];
+    simplifyDPStep(points, 0, last, 2, simplified);
+    simplified.push(points[last]);
+
+    return simplified;
 }
 
 /**
