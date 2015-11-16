@@ -283,7 +283,7 @@
             main.tick();
         }else{
             console.log("swiping")
-            svgAddClass(linkQuery,'selected');
+            if(linkQuery!="") svgAddClass(linkQuery,'selected');
         }
         if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
             if(hasClass(elm, 'node')) {
@@ -295,10 +295,12 @@
             }else{
                 console.log("swipe end")
                 // Set up the context menu at this point for the selected links
-                d3.select('#contextmenu')
+                if(linkQuery!=""){
+                    d3.select('#contextmenu')
                     .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
                     .attr('visibility', 'visible');
-                main.contextMenu = true;                       
+                    main.contextMenu = true;                       
+                }                
             }
             eventCleanup();
         }
