@@ -184,20 +184,27 @@
     }
 
     function handleDoubleSwipeEvent(event) {
+
+        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+            swipe.centers = [];
+        }
+
         var curPointX = event.center.x;
         var curPointY = event.center.y;
         var swipePointsLength = swipe.centers.length;
-        var prevPointX = swipe.centers[swipePointsLength-2].x;
-        var prevPointY = swipe.centers[swipePointsLength-2].y;
+        var prevPointX,prevPointY;
+        if(swipePointsLength<2){
+            prevPointX = swipe.centers[swipePointsLength-1].x;
+            prevPointY = swipe.centers[swipePointsLength-1].y;
+        }else{
+            prevPointX = swipe.centers[swipePointsLength-2].x;
+            prevPointY = swipe.centers[swipePointsLength-2].y;
+        }
         var deltaY = curPointY-prevPointY;
         var deltaX = curPointX-prevPointX;
 
         viewCenter.x += deltaX;
         viewCenter.y += deltaY;                    
-        
-        if(event.isFinal==true){
-            console.log("end of swipe")
-        }
         container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
     }
 
