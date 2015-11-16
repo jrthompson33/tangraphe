@@ -8,7 +8,7 @@
     main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force;
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar;
 
     var nodeG, linkG, menuG;
 
@@ -19,6 +19,7 @@
     var viewCenter = {x:0,y:0};
     var viewZoom = 1;
     var zoomScale = d3.scale.linear().domain([0,1]).range([1,4]);    
+    var color = d3.scale.category20();
 
     main.graph = {
         "nodes":[
@@ -63,19 +64,7 @@
         createContextMenu();
 
         // Load the data after we've set up the vis
-        main.loadData(params);
-
-        tick = function() {
-            link.attr("x1", function(d) { return d.source.x; })
-                .attr("y1", function(d) { return d.source.y; })
-                .attr("x2", function(d) { return d.target.x; })
-                .attr("y2", function(d) { return d.target.y; });
-
-            node.attr("cx", function(d) { return d.x; })
-                .attr("cy", function(d) { return d.y; });
-          };
-
-        var color = d3.scale.category20();
+        main.loadData(params);               
 
         force = d3.layout.force()
             .charge(-120)
@@ -88,14 +77,14 @@
             .start();
 
 
-        var link = linkG.selectAll(".link")
+        linkVar = linkG.selectAll(".link")
             .data(main.graph.links)
             .enter().append("line")
             .attr("class", "link")
             .attr('id', function(d){ return d.source.name+'-'+d.target.name})
             .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
-        var node = nodeG.selectAll(".node")
+        nodeVar = nodeG.selectAll(".node")
             .data(main.graph.nodes)
             .enter().append("circle")
             .attr('id', function(d){return d.name;})
@@ -103,20 +92,58 @@
             .attr("r", 50)
             .style("fill", function(d) { return color(d.group); });
 
-        node.append("title")
+        nodeVar.append("title")
             .text(function(d) { return d.name; });
 
-        force.on("tick", tick);
+        force.on("tick", main.tick);
 
         var hammertime = new Hammer(document.getElementById("vis"));
-
         hammertime.on("hammer.input", function(ev) {
             if (ev.pointerType == "touch") {
                 main.handleTouchEvent(ev);
             }
         });
-
     };
+
+    main.tick = function() {
+            linkVar.attr("x1", function(d) { return d.source.x; })
+                .attr("y1", function(d) { return d.source.y; })
+                .attr("x2", function(d) { return d.target.x; })
+                .attr("y2", function(d) { return d.target.y; });
+
+            nodeVar.attr("cx", function(d) { return d.x; })
+                .attr("cy", function(d) { return d.y; });
+          };
+
+    main.updateGraph = function(){
+        linkVar = linkVar.data(main.graph.links);
+        var exitingLinks = linkVar.exit();
+        exitingLinks.remove();
+        var newLinks = linkVar.enter();
+        newLinks.insert("line",".node").attr("class","link");
+
+        nodeVar = nodeVar.data(main.graph.nodes,function(d){return d.name;});
+        var exitingNodes = nodeVar.exit();
+        exitingNodes.remove();
+        var newNodes = nodeVar.enter();
+
+        newNodes.append("circle")
+             .attr("r", 50)
+             .attr("class","node")
+             .style("fill", function(d) { return color(d.group); });
+
+        nodeVar.append("title")
+            .text(function(d) { return d.name; });
+
+        force.start();
+        force.on("tick", main.tick);        
+        var hammertime = new Hammer(document.getElementById("vis"));
+        hammertime.on("hammer.input", function(ev) {
+            if (ev.pointerType == "touch") {
+                main.handleTouchEvent(ev);
+            }
+        });
+    }
 
     main.handleTouchEvent = function(event) {
         var px = event.center.x;
@@ -212,6 +239,9 @@
                 console.log("double tap handler")            
                 if(hasClass(e, 'node')) {
                     console.log("on node")
+                    main.graph.nodes.push({"name":"New_Node","group":1})
+                    main.graph.links.push({"source":8,"target":1,"value":1});
+                    main.updateGraph();
                 }else{
                     console.log("on bg")
                 }
@@ -248,7 +278,7 @@
             console.log("dragging")
             main.dragNode(event);
             force.stop();
-            tick();
+            main.tick();
         }else{
             console.log("swiping")
         }
@@ -256,7 +286,8 @@
             if(hasClass(elm, 'node')) {
                 console.log("dragend")
                 main.dragEnd(event);
-                force.resume()
+                force.resume();
+                main.tick();
             }else{
                 console.log("swipe end")
                 // Set up the context menu at this point for the selected links
@@ -495,6 +526,5 @@
 
     main.resizeWindow = function() {
         // Resize the visualization
-
     };
 })();
