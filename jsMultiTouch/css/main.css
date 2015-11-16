@@ -9,11 +9,21 @@
 .node {
       stroke: #000;
       stroke-width: 1.5px;
-    }
+}
+
+.node.selected {
+      stroke: #f00;
+      stroke-width: 2.5px;
+}   
 
 .link {
   stroke: #ccc;
   stroke-opacity: .6;
+}
+
+.link.selected {
+  stroke: #f00;
+  stroke-width: 2.5;
 }
 
 #viz {

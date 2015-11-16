@@ -91,7 +91,8 @@ function isCircleInPoly(poly, pt, r) {
         return true;
     } else {
         for (var i = 1; i < poly.length; i++) {
-            if(distPointToSegment(pt,poly[i-1],[i]) <= r) {
+            var d = distPointToSegment(pt,poly[i-1],poly[i]);
+            if(d <= r) {
                 return true;
             }
         }
@@ -105,7 +106,7 @@ function isCircleInPoly(poly, pt, r) {
  * @returns {Array} array of reduced points
  */
 function pointReduction(points) {
-    var tolerance = 5;
+    var tolerance = 3;
 
     var marked = Array.apply(null, Array(points.length)).map(Number.prototype.valueOf,0);
     marked[0] = 1;
@@ -167,7 +168,7 @@ function decimate(t,points,j,k,mk) {
         mk[maxI] = 1;
         // recursively decimate the two subpolylines at v[maxI]
         decimate(t,points,j,maxI,mk);
-        decimate(t,points,v,maxI,k,mk);
+        decimate(t,points,maxI,k,mk);
     }
 }
 
@@ -178,18 +179,20 @@ function decimate(t,points,j,k,mk) {
  * @param seg1 - end point of line segment, object with x and y values
  * @returns {JSNumber} distance
  */
-function distPointToSegment(point, seg0, seg1) {
+function distPointToSegment(pt, seg0, seg1) {
     var v = new Vector(seg1.x-seg0.x,seg1.y-seg0.y);
-    var w = new Vector(point.x-seg0.x,point.y-seg0.y);
+    var w = new Vector(pt.x-seg0.x,pt.y-seg0.y);
+    var point = new Vector(pt.x,pt.y);
 
     var c1 = w.dot(v);
-    if(c1 <= 0) return (new Vector(p.x-seg0.x, p.y-seg0.y)).norm();
+    if(c1 <= 0) return point.distSeg(seg0.x,seg0.y);
     var c2 = v.dot(v);
-    if (c2 <= c1) return (new Vector(p.x-seg1.x, p.y-seg1.y)).norm();
+    if (c2 <= c1) return point.distSeg(seg1.x,seg1.y);
 
     var b = c1/c2;
     var p = {x: seg0.x+b*v.x, y: seg0.y+b*v.y};
-    return (new Vector(p.x-p.x, p.y-p.y)).norm();
+    var d = point.distSeg(p.x,p.y);
+    return d;
 }
 
 Vector = function(x,y) {
@@ -206,6 +209,12 @@ Vector.prototype = {
     },
     norm2: function() {
         return this.dot(this);
+    },
+    dist: function(v) {
+        return Math.sqrt((this.x-v.x)*(this.x-v.x)+(this.y-v.y)*(this.y-v.y));
+    },
+    distSeg: function(x0,y0) {
+        return Math.sqrt((this.x-x0)*(this.x-x0)+(this.y-y0)*(this.y-y0));
     }
 };
 
@@ -223,4 +232,26 @@ Array.prototype.getUnique = function(){
 
 function pointInCircle(cx,cy,px,py,r){
     return Math.sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy)) < r;
+}
+
+function svgAddClass(selector, cls) {
+    $(selector).each(function(i,n){
+        if(n.className instanceof SVGAnimatedString) {
+            if((' '+n.className.baseVal+' ').indexOf(' '+cls+' ') == -1) n.className.baseVal += ' '+cls;
+            if((' '+n.className.animVal+' ').indexOf(' '+cls+' ') == -1) n.className.animVal += ' '+cls;
+        } else {
+            n.addClass(cls);
+        }
+    });
+}
+
+function svgRemoveClass(selector, cls) {
+    $(selector).each(function(i,n){
+        if(n.className instanceof SVGAnimatedString) {
+            n.className.baseVal = (' '+n.className.baseVal+' ').replace(' '+cls+' ').trim();
+            n.className.animVal = (' '+n.className.animVal+' ').replace(' '+cls+' ').trim();
+        } else {
+            n.removeClass(cls);
+        }
+    });
 }

@@ -1,3 +1,4 @@
+
 /**
  * Created by John Thompson
  */
@@ -8,12 +9,13 @@
     main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar;
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer;
 
     var nodeG, linkG, menuG;
+    var twoFingerSwipeStartCenter = null;
 
     var moveThreshold = 9;
-    var swipeReduceTime = 20;
+    var swipeReduceTime = 10;
     var longPressThreshold = 15;
     var longPressTimeout = 350;
     var viewCenter = {x:0,y:0};
@@ -57,9 +59,11 @@
         svg.attr("height", function(d) {return d.height;})
             .attr("width", function(d) {return d.width;});
 
-        linkG = svg.append('g').attr('id', 'link-group');
-        nodeG = svg.append('g').attr('id', 'node-group');
-        menuG = svg.append('g').attr('id', 'menu-group');
+        graphContainer = svg.append("g", 'graph-container');
+        linkG = graphContainer.append('g').attr('id', 'link-group');
+        nodeG = graphContainer.append('g').attr('id', 'node-group');
+        annotG = graphContainer.append('g').attr('id', 'annot-group');
+        menuG = graphContainer.append('g').attr('id', 'menu-group');
 
         createContextMenu();
 
@@ -75,7 +79,6 @@
         force.nodes(main.graph.nodes)
             .links(main.graph.links)
             .start();
-
 
         linkVar = linkG.selectAll(".link")
             .data(main.graph.links)
@@ -136,13 +139,7 @@
             .text(function(d) { return d.name; });
 
         force.start();
-        force.on("tick", main.tick);        
-        var hammertime = new Hammer(document.getElementById("vis"));
-        hammertime.on("hammer.input", function(ev) {
-            if (ev.pointerType == "touch") {
-                main.handleTouchEvent(ev);
-            }
-        });
+        force.on("tick", main.tick);
     }
 
     main.handleTouchEvent = function(event) {
@@ -168,14 +165,15 @@
             if(!swipe && event.distance > moveThreshold) { // TODO: check the 2nd condition since it is invoking a touchend event (2nd case below) at the start of two-finger swipe
                 press.centers.push(event.center);
                 press.events.push(event);
-                swipe = {time: event.timeStamp, centers: press.centers, events: press.events, touches: event.pointers.length};
+                swipe = {time: event.timeStamp, centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length};
             }
             if (swipe) {
+                if(event.timeStamp > swipe.time) {
+                    swipe.time = event.timeStamp;
+                    swipe.centers.push(event.center);
+                    swipe.events.push(event);
+                }
                 
-                // console.log("swipe")
-                swipe.time = event.timestamp;
-                swipe.centers.push(event.center);
-                swipe.events.push(event);
                 // Always take the greater of the two
                 // if a swipe starts out as one finger but ends as two we want it to be a double swipe
 
@@ -233,6 +231,7 @@
                 console.log("on node")
             }else{
                 console.log("on bg")
+                if(main.contextMenu) dismissContextMenu();
             }            
         }else{
             if(tapCount==2){
@@ -247,6 +246,7 @@
                 }
             }            
         }
+        // console.log("resetting tapCount")
         tapCount = 0;
     }
 
@@ -257,7 +257,7 @@
     function handleSingleSwipeEvent(event) {
         var elm = document.elementFromPoint(event.center.x,event.center.y);
         // Reduce the points in the swipe if time has passed beyond threshold
-        if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timestamp - swipe.events[swipe.events.length-2].timestamp) > swipeReduceTime) {
+        if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timeStamp - swipe.events[swipe.events.length-2].timeStamp) > swipeReduceTime) {
             swipe.centers = pointReduction(swipe.centers);
         }
         var linkSelect = [];
@@ -272,32 +272,35 @@
             linkQuery += linkSelect[j] + ((j == linkSelect.length-1) ? '':', ');
         }
         // Select the links
-        // console.log(linkQuery)
-        $(linkQuery).addClass('selected');
+        // console.log(linkQuery)        
+        //console.log($(linkQuery));
         if(hasClass(elm, 'node')) {
-            console.log("dragging")
-            main.dragNode(event);
+            var focusNode = getFocusNode(event.center.x,event.center.y);
+            if(focusNode!={}) movingNode = focusNode;
+            console.log("dragging",focusNode.name)
+            main.dragNode(focusNode,event);            
             force.stop();
             main.tick();
         }else{
             console.log("swiping")
+            svgAddClass(linkQuery,'selected');
         }
-        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+        if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
             if(hasClass(elm, 'node')) {
                 console.log("dragend")
                 main.dragEnd(event);
+                movingNode = null;
                 force.resume();
-                main.tick();
+                main.tick();                   
             }else{
                 console.log("swipe end")
                 // Set up the context menu at this point for the selected links
                 d3.select('#contextmenu')
                     .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
                     .attr('visibility', 'visible');
-                main.contextMenu = true;
-                // TODO set up listeners here
-                swipe = null;                        
+                main.contextMenu = true;                       
             }
+            eventCleanup();
         }
     }
 
@@ -305,6 +308,9 @@
         var curPointX = event.center.x;
         var curPointY = event.center.y;
         var curScale = event.scale;
+        if(twoFingerSwipeStartCenter == null){
+            twoFingerSwipeStartCenter = {x:curPointX,y:curPointY};
+        }
 
         var swipePointsLength = swipe.centers.length;
         var prevPointX,prevPointY, prevScale;
@@ -320,8 +326,8 @@
         var deltaY = curPointY-prevPointY;
         var deltaX = curPointX-prevPointX;
 
-        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
-           swipe = null;
+        if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+           eventCleanup();
            console.log("two finger swipe end")
         }
 
@@ -332,25 +338,59 @@
         // offsetX = -(curPointX * zoomDelta);
         // offsetY = -(curPointY * zoomDelta);
 
+        //console.log(event.pointers.length)
+        viewZoom += zoomDelta;
+        viewCenter.x += deltaX;
+        viewCenter.y += deltaY; 
         if(zoomDelta>0){
             // console.log("pinch out");
         }else{
             // console.log("pinch in");
         }
-        //console.log(event.pointers.length)
-        viewZoom += zoomDelta;
-        viewCenter.x += deltaX;
-        viewCenter.y += deltaY;      
-        // container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
-        // container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
-        // container.attr("transform","scale("+zoomScale(viewZoom)+")")
+        // console.log(event)
+        if(twoFingerSwipeStartCenter!=null){
+            if((Math.abs(event.center.x-twoFingerSwipeStartCenter.x) < 10) && (Math.abs(event.center.y-twoFingerSwipeStartCenter.y) < 10)){        
+                // console.log("pinch")
+            }else{
+                // console.log("pan")            
+            }
+        }        
+        // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
+        // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
+        // graphContainer.attr("transform","scale("+zoomScale(viewZoom)+")")
     }
 
     function handleTripleSwipeEvent(event) {
         // Reduce the points in the swipe if time has passed beyond threshold
-        if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timestamp - swipe.events[swipe.events.length-2].timestamp) > swipeReduceTime) {
+        if(swipe.events.length > 2 ) {
             swipe.centers = pointReduction(swipe.centers);
         }
+
+        annotG.selectAll('.swipetrace').remove();
+        
+        var traceSelect = annotG.selectAll('.swipetrace')
+            .data([swipe.centers], function(d){return d.length});
+
+        traceSelect.enter().append('path')
+            .attr('d', function(d){
+                if(d.length < 2){
+                    return '';
+                }
+                var pth = 'M '+d[0].x+' '+d[0].y;
+                for(var i = 1; i < d.length; i++) {
+                    if(d[i].x > d[0].x) {
+                    }
+                    pth += ' L '+d[i].x+' '+d[i].y;
+                }
+                return pth;
+            })
+            .attr('class', 'swipetrace')
+            .style('fill', 'none')
+            .style('stroke', '#777')
+            .style('stroke-width', '3')
+            .style('stroke-opacity', 0.6)
+            .style('stroke-dasharray', '3 1');
+
         var nodeSelect = [];
         // check which links the swipe encloses in a convex shape
         for(var i = 1; i < swipe.centers.length; i++) {
@@ -362,8 +402,8 @@
         for(var j = 0; j < nodeSelect.length; j++) {
             nodeQuery += nodeSelect[j] + ((j == nodeSelect.length-1) ? '':', ');
         }
-        // Select the links
-        $(nodeQuery).addClass('selected');
+        // Select the nodes
+        svgAddClass(nodeQuery,'selected');
         if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
             // Set up the context menu at this point for the selected links
             d3.select('#contextmenu')
@@ -374,7 +414,7 @@
 
             // TODO set up listeners here
 
-            swipe = null;
+            eventCleanup();
             console.log("three finger swipe end")
         }
     }
@@ -383,11 +423,17 @@
 
     }
 
+    function eventCleanup() {
+        swipe = null;
+        press = null;
+        twoFingerSwipeStartCenter = null;           
+        tapCount = 0;
+    }
+
     function dismissContextMenu(){
         main.contextMenu = false;
-        d3.select('.contextmenu').classed('contextmenu', false);
         // just move the context menu to the origin, that should be off-screen
-        d3.select('#path-contextmenu')
+        d3.select('#contextmenu')
             .attr('transform',  'translate(0,0)')
             .attr('visibility', 'hidden');
     }
@@ -471,6 +517,7 @@
     function getNodesInside(poly) {
         var select = [];
         d3.selectAll('.node').each(function(n){
+
             if(isCircleInPoly(poly,n,50)) {
                 select.push('#'+ n.name);
             }
@@ -488,26 +535,23 @@
         return select;
     }
 
-    function getFocusNodeId(px,py) {
-        var select = "";
+    function getFocusNode(px,py) {
+        var select = movingNode;        
         d3.selectAll('.node').each(function(curNode){
-            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {                
+            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
+                if(movingNode==null){
+                    select = curNode;                    
+                }
             }
         });
         return select;
     }
 
-    main.dragNode = function(event){
-        px = event.center.x;
-        py = event.center.y;
-        d3.selectAll('.node').each(function(curNode){
-            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
-                curNode.px = event.center.x;
-                curNode.x = event.center.x;
-                curNode.py = event.center.y;
-                curNode.y = event.center.y;
-            }
-        });
+    main.dragNode = function(focusNode,event){
+        focusNode.px = event.center.x;
+        focusNode.x = event.center.x;
+        focusNode.py = event.center.y;
+        focusNode.y = event.center.y;
     }
 
     main.dragEnd = function(event){
