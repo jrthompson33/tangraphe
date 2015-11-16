@@ -8,7 +8,7 @@
     main = {};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, container;
+    var chart, svg, height, width, swipe, press, tick, container, timer, tapCount=0;
 
     var moveThreshold = 9;
     var longPressThreshold = 15;
@@ -121,11 +121,11 @@
             press = {time: event.timeStamp, centers: [event.center], events: [event], touches: event.pointers.length};
 
             // are these needed? There will never be a single press event (since the minimum is touchstart and touchend)
-            if(event.pointers.length == 1) {
-                handleSinglePressEvent(event);
-            } else {
-                handleMultiPressEvent(event);
-            }   
+            // if(event.pointers.length == 1) {
+            //     handleSinglePressEvent(event);
+            // } else {
+            //     handleMultiPressEvent(event);
+            // }   
             console.log("touch down")         
         } else {
             // Check if this event moved enough, then start a swipe
@@ -158,17 +158,21 @@
                 }
             } else {
                 console.log("touch up")
-                press.time = event.timestamp;
-                press.centers.push(event.center);
-                press.events.push(event);
-                // Always take the greater of the two
-                // if a press starts out as one finger but ends as two we want it to be a double press
-                press.touches = press.touches > event.pointers.length ? press.touches : event.pointers.length;                
-                if(press.touches == 1) {
-                    handleSinglePressEvent(event);
-                } else {
-                    handleMultiPressEvent(event);
-                }
+                tapCount += 1;        
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(function() {
+                    press.time = event.timeStamp;
+                    press.centers.push(event.center);
+                    press.events.push(event);
+                    // Always take the greater of the two
+                    // if a press starts out as one finger but ends as two we want it to be a double press
+                    press.touches = press.touches > event.pointers.length ? press.touches : event.pointers.length;                
+                    if(press.touches == 1) {
+                        handleSinglePressEvent(event);
+                    } else {
+                        handleMultiPressEvent(event);
+                    }
+                }, 250);                
             }
         }
     };
@@ -178,7 +182,13 @@
     }
 
     function handleSinglePressEvent(event) {
-
+        console.log(event)
+        if(tapCount==1){
+            console.log("single")
+        }else{
+            console.log("double",tapCount)            
+        }
+        tapCount = 0;
     }
 
     function handleMultiPressEvent(event) {
