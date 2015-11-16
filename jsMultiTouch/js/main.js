@@ -5,12 +5,15 @@
 (function(){
 
     // The global objects for the visualization
-    main = {};
+    main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, container, timer, tapCount=0;
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0;
+
+    var nodeG, linkG, menuG;
 
     var moveThreshold = 9;
+    var swipeReduceTime = 20;
     var longPressThreshold = 15;
     var longPressTimeout = 350;
     var viewCenter = {x:0,y:0};
@@ -53,6 +56,12 @@
         svg.attr("height", function(d) {return d.height;})
             .attr("width", function(d) {return d.width;});
 
+        linkG = svg.append('g').attr('id', 'link-group');
+        nodeG = svg.append('g').attr('id', 'node-group');
+        menuG = svg.append('g').attr('id', 'menu-group');
+
+        createContextMenu();
+
         // Load the data after we've set up the vis
         main.loadData(params);
 
@@ -79,17 +88,17 @@
             .start();
 
 
-        container = svg.append("g");
-        var link = container.selectAll(".link")
+        var link = linkG.selectAll(".link")
             .data(main.graph.links)
             .enter().append("line")
             .attr("class", "link")
             .attr('id', function(d){ return d.source.name+'-'+d.target.name})
             .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
-        var node = container.selectAll(".node")
+        var node = nodeG.selectAll(".node")
             .data(main.graph.nodes)
             .enter().append("circle")
+            .attr('id', function(d){return d.name;})
             .attr("class", "node")
             .attr("r", 50)
             .style("fill", function(d) { return color(d.group); });
@@ -212,10 +221,36 @@
     }
 
     function handleSingleSwipeEvent(event) {
+        // Reduce the points in the swipe if time has passed beyond threshold
+        if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timestamp - swipe.events[swipe.events.length-2].timestamp) > swipeReduceTime) {
+            swipe.centers = pointReduction(swipe.centers);
+        }
+        var linkSelect = [];
+        // check which links the swipe went through
+        for(var i = 1; i < swipe.centers.length; i++) {
+            linkSelect = linkSelect.concat(getPassThroughLinks(swipe.centers[i-1],swipe.centers[i]));
+        }
+        // turn all of the selectors into a selection string
+        var linkQuery = '';
+        linkSelect = linkSelect.getUnique();
+        for(var j = 0; j < linkSelect.length; j++) {
+            linkQuery += linkSelect[j] + ((j == linkSelect.length-1) ? '':', ');
+        }
+        // Select the links
+        $(linkQuery).addClass('selected');
+
         if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
-           swipe = null;
-           console.log("single swipe end")
-        }        
+            // Set up the context menu at this point for the selected links
+            d3.select('#contextmenu')
+                .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
+                .attr('visibility', 'visible');
+
+            main.contextMenu = true;
+
+            // TODO set up listeners here
+
+        swipe = null;
+        }
     }
 
     function handleDoubleSwipeEvent(event) { // ISSUE: both events are always triggered together (might need to re-think about these interactions).
@@ -264,21 +299,144 @@
     }
 
     function handleTripleSwipeEvent(event) {
+        // Reduce the points in the swipe if time has passed beyond threshold
+        if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timestamp - swipe.events[swipe.events.length-2].timestamp) > swipeReduceTime) {
+            swipe.centers = pointReduction(swipe.centers);
+        }
+        var nodeSelect = [];
+        // check which links the swipe encloses in a convex shape
+        for(var i = 1; i < swipe.centers.length; i++) {
+            nodeSelect = nodeSelect.concat(getNodesInside(swipe.centers));
+        }
+        // turn all of the selectors into a selection string
+        var nodeQuery = '';
+        nodeSelect = nodeSelect.getUnique();
+        for(var j = 0; j < nodeSelect.length; j++) {
+            nodeQuery += nodeSelect[j] + ((j == nodeSelect.length-1) ? '':', ');
+        }
+        // Select the links
+        $(nodeQuery).addClass('selected');
+        if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
+            // Set up the context menu at this point for the selected links
+            d3.select('#contextmenu')
+                .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
+                .attr('visibility', 'visible');
 
+            main.contextMenu = true;
+
+            // TODO set up listeners here
+
+            swipe = null;
+        }
     }
 
     function handleHandSwipeEvent(event) {
 
     }
 
-    function getPassThroughLinks(p1,p2) {
-        var select = '';
-        d3.selectAll('.link').each(function(l){
-            if(lineIntersect(p1.x,p1.y,p2.x,p2.y,l.source.x,l.source.y,l.target.x,l.target.y)) { 
-                select += '#'+l.source.name+'-'+l.target.name+', ';
+    function dismissContextMenu(){
+        main.contextMenu = false;
+        d3.select('.contextmenu').classed('contextmenu', false);
+        // just move the context menu to the origin, that should be off-screen
+        d3.select('#path-contextmenu')
+            .attr('transform',  'translate(0,0)')
+            .attr('visibility', 'hidden');
+    }
+
+    function createContextMenu() {
+        var slices = [];
+        var cmInnerRadius = 35;
+        var cmOuterRadius = 115;
+        var cmInnerMargin = 4/cmInnerRadius;
+        var cmOuterMargin = 4/cmOuterRadius;
+
+        var modes = ['DELETE, BUNDLE, CLEAR'];
+
+        var trashIcon = ["M116,161.7c0-0.1-0.1-0.3-0.3-0.4c-1.1,1.1-5.5,1.3-10.7,1.3s-9.6-0.2-10.7-1.3c-0.1,0.1-0.2,0.3-0.3,0.4h0"
+        +"l0,0.1c0,0,0,0,0,0c0,0,0,0,0,0.1l0.9,17.5h0c0.1,1.4,1.6,3.4,10.1,3.4c8.5,0,10.1-2.1,10.1-3.4h0l0.9-17.5c0,0,0,0,0-0.1"
+        +"C116,161.8,116,161.8,116,161.7L116,161.7L116,161.7z",
+            "M110.2,152.5v-4.1c0-0.7-0.6-1.4-1.4-1.4h-8.2c-0.7,0-1.4,0.6-1.4,1.4v4.2c-4,0.5-6.8,1.4-6.8,2.5v2"
+            +"c0,0.4,0.4,0.8,1.2,1.2c2,0.9,6.3,1.6,11.3,1.6c5,0,9.3-0.7,11.3-1.6c0.8-0.4,1.2-0.8,1.2-1.2v-2"
+            +"C117.5,153.9,114.5,152.9,110.2,152.5z M101.9,152.3l-0.3,0v-1.7c0-0.7,0.1-1.4,0.2-1.4c0.1,0,0.8,0,1.6,0h2.7c0.7,0,1.5,0,1.6,0"
+            +"c0.1,0,0.2,0.6,0.2,1.4v1.7c-0.9,0-1.9-0.1-3-0.1C103.9,152.2,102.9,152.3,101.9,152.3z"];
+
+        var deg = 2*Math.PI/(3);
+        for(var i = 0; i < (3); i++) {
+            var mid = Math.PI/2 + i*deg;
+            console.log(mid*180/Math.PI);
+            var start = mid - deg/2;
+            var end = mid + deg/2;
+            slices.push({angle: mid, start: start, end: end});
+        }
+
+        // Can't do more than 8 modes, also need to have the delete but always be at the bottom
+        var cm = menuG.append('g')
+            .attr('id', 'contextmenu');
+
+        var select = cm.selectAll('.contextmenu-slice')
+            .data(slices, function(d){return d.angle;});
+
+        var enter = select.enter().append('g')
+            .attr('id', function(d,i){return 'slice-'+((i==0)?'r':(i-1));})
+            .attr('class', function(d,i){return'contextmenu-slice'+(i==0?'':' slice-mode');});
+
+        // add the path that defines the slice of the contextmenu first
+        enter.append('path')
+            .attr('d', function(d){return 'M'+(cmInnerRadius*Math.cos(d.start+cmInnerMargin))+' '+(cmInnerRadius*Math.sin(d.start+cmInnerMargin))
+                +' L'+(cmOuterRadius*Math.cos(d.start+cmOuterMargin))+' '+(cmOuterRadius*Math.sin(d.start+cmOuterMargin))
+                +' A'+cmOuterRadius+' '+cmOuterRadius+' 0 0 1 '
+                +(cmOuterRadius*Math.cos(d.end-cmOuterMargin))+' '+(cmOuterRadius*Math.sin(d.end-cmOuterMargin))
+                +' L'+(cmInnerRadius*Math.cos(d.end-cmInnerMargin))+' '+(cmInnerRadius*Math.sin(d.end-cmInnerMargin))
+                +' A'+cmInnerRadius+' '+cmInnerRadius+' 0 0 0 '
+                +(cmInnerRadius*Math.cos(d.start+cmInnerMargin))+' '+(cmInnerRadius*Math.sin(d.start+cmInnerMargin))
+                ;});
+
+        var middle = enter.append('g')
+            .attr('class', 'middle')
+            .attr('transform', function(d){return'translate('+(Math.cos(d.angle)*(cmOuterRadius-cmInnerRadius*1.25))+','
+                + (Math.sin(d.angle)*(cmOuterRadius-cmInnerRadius*1.25))+')';});
+
+        middle.append('text')
+            .attr('class', 'contextmenu-label')
+            .attr('y', '22px')
+            .text(function(d,i){return modes[i];});
+
+        var deleteMiddle = d3.select('#slice-r .middle');
+
+        deleteMiddle.append('path')
+            .style('-webkit-transform', 'translate(-104px,-176px)')
+            .style('fill', '#F00')
+            .style('fill-opacity', '0.5')
+            .attr('d', trashIcon[0]);
+
+        deleteMiddle.append('path')
+            .style('transform', 'translate(-104px,-176px)')
+            .style('-webkit-transform', 'translate(-104px,-176px)')
+            .style('fill', '#F00')
+            .style('fill-opacity', '0.5')
+            .attr('d', trashIcon[1]);
+
+        cm.attr('visibility', 'hidden');
+    }
+
+    function getNodesInside(poly) {
+        var select = [];
+        d3.selectAll('.node').each(function(n){
+            if(isCircleInPoly(poly,n,50)) {
+                select.push('#'+ n.name);
             }
         });
-        return select.length > 0 ? select.substring(0, select.length-2) : '';
+        return select;
+    }
+
+    function getPassThroughLinks(p1,p2) {
+        var select = [];
+        d3.selectAll('.link').each(function(l){
+            if(lineIntersect(p1,p2,l.source,l.target)) {
+                select.push('#'+l.source.name+'-'+l.target.name);
+            }
+        });
+        return select;
     }
 
     main.loadData = function(params) {
