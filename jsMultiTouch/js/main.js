@@ -91,8 +91,7 @@
             .enter().append("circle")
             .attr("class", "node")
             .attr("r", 50)
-            .style("fill", function(d) { return color(d.group); })
-            .call(force.drag);
+            .style("fill", function(d) { return color(d.group); });
 
         node.append("title")
             .text(function(d) { return d.name; });
@@ -137,7 +136,11 @@
                 swipe.events.push(event);
                 // Always take the greater of the two
                 // if a swipe starts out as one finger but ends as two we want it to be a double swipe
+
+                // WHAT HAPPENS WHEN WE GO FROM TWO FINGERS TO ONE? this condition sets swipe.touches to 2 in that case.
                 swipe.touches = swipe.touches > event.pointers.length ? swipe.touches : event.pointers.length;
+                
+
                 // TODO handle a switch so that we override any events that were triggered from a different swipe
                 if(swipe.touches == 1) {
                     handleSingleSwipeEvent(event);
@@ -192,8 +195,9 @@
         viewCenter.x += deltaX;
         viewCenter.y += deltaY;                    
         
-        console.log(swipePointsLength)
-        // console.log(deltaX,deltaY)
+        if(event.isFinal==true){
+            console.log("end of swipe")
+        }
         container.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
     }
 
