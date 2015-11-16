@@ -180,7 +180,7 @@ function decimate(t,points,j,k,mk) {
  */
 function distPointToSegment(point, seg0, seg1) {
     var v = new Vector(seg1.x-seg0.x,seg1.y-seg0.y);
-    var w = new Vector(point.x-seg0.x,point.y-seg.y);
+    var w = new Vector(point.x-seg0.x,point.y-seg0.y);
 
     var c1 = w.dot(v);
     if(c1 <= 0) return (new Vector(p.x-seg0.x, p.y-seg0.y)).norm();
@@ -221,3 +221,6 @@ Array.prototype.getUnique = function(){
     return a;
 }
 
+function pointInCircle(cx,cy,px,py,r){
+    return Math.sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy)) < r;
+}

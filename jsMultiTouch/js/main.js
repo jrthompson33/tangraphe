@@ -8,7 +8,7 @@
     main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0;
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force;
 
     var nodeG, linkG, menuG;
 
@@ -77,7 +77,7 @@
 
         var color = d3.scale.category20();
 
-        var force = d3.layout.force()
+        force = d3.layout.force()
             .charge(-120)
             .linkDistance(500)
             .size([width, height]);
@@ -195,8 +195,8 @@
     function handleSinglePressEvent(event) {
         var e = document.elementFromPoint(event.center.x,event.center.y);            
         if(tapCount==1){
-            console.log("handle single here")
-            console.log(press.events[1].timeStamp-press.events[0].timeStamp)
+            console.log("single press handler")
+            // console.log(press.events[1].timeStamp-press.events[0].timeStamp)
             if((press.events[1].timeStamp-press.events[0].timeStamp)>125){
                 console.log("long press")
             }else{
@@ -204,12 +204,16 @@
             }
             if(hasClass(e, 'node')) {
                 console.log("on node")
-            }
+            }else{
+                console.log("on bg")
+            }            
         }else{
             if(tapCount==2){
-                console.log("handle double here")            
+                console.log("double tap handler")            
                 if(hasClass(e, 'node')) {
                     console.log("on node")
+                }else{
+                    console.log("on bg")
                 }
             }            
         }
@@ -221,6 +225,7 @@
     }
 
     function handleSingleSwipeEvent(event) {
+        var elm = document.elementFromPoint(event.center.x,event.center.y);
         // Reduce the points in the swipe if time has passed beyond threshold
         if(swipe.events.length > 2 && (swipe.events[swipe.events.length-1].timestamp - swipe.events[swipe.events.length-2].timestamp) > swipeReduceTime) {
             swipe.centers = pointReduction(swipe.centers);
@@ -237,19 +242,31 @@
             linkQuery += linkSelect[j] + ((j == linkSelect.length-1) ? '':', ');
         }
         // Select the links
+        // console.log(linkQuery)
         $(linkQuery).addClass('selected');
-
+        if(hasClass(elm, 'node')) {
+            console.log("dragging")
+            main.dragNode(event);
+            force.stop();
+            tick();
+        }else{
+            console.log("swiping")
+        }
         if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
-            // Set up the context menu at this point for the selected links
-            d3.select('#contextmenu')
-                .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
-                .attr('visibility', 'visible');
-
-            main.contextMenu = true;
-
-            // TODO set up listeners here
-
-        swipe = null;
+            if(hasClass(elm, 'node')) {
+                console.log("dragend")
+                main.dragEnd(event);
+                force.resume()
+            }else{
+                console.log("swipe end")
+                // Set up the context menu at this point for the selected links
+                d3.select('#contextmenu')
+                    .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
+                    .attr('visibility', 'visible');
+                main.contextMenu = true;
+                // TODO set up listeners here
+                swipe = null;                        
+            }
         }
     }
 
@@ -327,6 +344,7 @@
             // TODO set up listeners here
 
             swipe = null;
+            console.log("three finger swipe end")
         }
     }
 
@@ -363,7 +381,7 @@
         var deg = 2*Math.PI/(3);
         for(var i = 0; i < (3); i++) {
             var mid = Math.PI/2 + i*deg;
-            console.log(mid*180/Math.PI);
+            // console.log(mid*180/Math.PI);
             var start = mid - deg/2;
             var end = mid + deg/2;
             slices.push({angle: mid, start: start, end: end});
@@ -437,6 +455,38 @@
             }
         });
         return select;
+    }
+
+    function getFocusNodeId(px,py) {
+        var select = "";
+        d3.selectAll('.node').each(function(curNode){
+            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {                
+            }
+        });
+        return select;
+    }
+
+    main.dragNode = function(event){
+        px = event.center.x;
+        py = event.center.y;
+        d3.selectAll('.node').each(function(curNode){
+            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
+                curNode.px = event.center.x;
+                curNode.x = event.center.x;
+                curNode.py = event.center.y;
+                curNode.y = event.center.y;
+            }
+        });
+    }
+
+    main.dragEnd = function(event){
+        px = event.center.x;
+        py = event.center.y;
+        d3.selectAll('.node').each(function(curNode){
+            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
+                curNode.fixed = true;
+            }
+        });
     }
 
     main.loadData = function(params) {
