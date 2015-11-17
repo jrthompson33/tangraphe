@@ -343,7 +343,7 @@
             main.tick();
         }else{
             console.log("swiping")
-            if(linkQuery!="") svgAddClass(linkQuery,'selected');
+            if(linkQuery!="") svgAddClass(linkQuery,'selected');            
         }
         if(event.isFinal){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
             if(hasClass(elm, 'node')) {
@@ -913,6 +913,13 @@
             if(x != -1) {
                 main.graph.links.splice(x, 1);
             }
+        }
+    }
+
+    function deleteLink(link){
+        var linkToDeleteIndex = main.graph.links.indexOf(link);
+        if(linkToDeleteIndex!=-1){
+            main.graph.links.splice(linkToDeleteIndex,1);
         }
     }
 
