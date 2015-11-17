@@ -28,22 +28,46 @@
 
     main.graph = {
         "nodes":[
-        {"name":"Myriel","group":1},
-        {"name":"Napoleon","group":1},
-        {"name":"Mlle_Baptistine","group":1},
-        {"name":"Mme_Magloire","group":1},
-        {"name":"CountessdeLo","group":1},
-        {"name":"Geborand","group":1},
-        {"name":"Champtercier","group":1},
-        {"name":"Cravatte","group":1}
+          {
+           "id": "208251", 
+           "name": "Conoco Inc"
+          }, 
+          {
+           "id": "24978T", 
+           "name": "Derby Refining Co"
+          }, 
+          {
+           "id": "573810", 
+           "name": "Marubeni Corp"
+          }, 
+          {
+           "id": "96990C", 
+           "name": "Williams Terminals Co"
+          }, 
+          {
+           "id": "80412W", 
+           "name": "ARAMCO"
+          }, 
+          {
+           "id": "80412K", 
+           "name": "SABIC"
+          }, 
+          {
+           "id": "097023", 
+           "name": "Boeing Co"
+          }
         ],
         "links":[
-        {"source":1,"target":0,"value":1},
-        {"source":2,"target":0,"value":8},
-        {"source":3,"target":0,"value":10},
-        {"source":3,"target":2,"value":6},
-        {"source":4,"target":0,"value":1},
-        {"source":5,"target":0,"value":1}
+          {
+           "source": 0, 
+           "synopsis": "Iranian Shipping Line and state-owned Pakistan National Shipping Corp have\nsigned a final agreement to form a joint shipping venture.  The partners\nhad signed a memorandum of understanding in 1983, but the Pakistani\ngovernment had not given the go-ahead for the launch of the venture until\nJanuray 1995.  The new company was owned 51% by Iranian Shipping and 49% by\nPakistan National Shpping.", 
+           "target": 1
+          }, 
+          {
+           "source": 2, 
+           "synopsis": "Saudi Arabian Oil Co{ARAMCO} and Mobil Yanbu Refining Co Inc (Mobil Yanbu),\na unit of Exxonmobil Corp formed a joint venture named Saudi Aramco Mobil\nRefinery Co Ltd{SAMREF} to provide oil and gas exploration services.", 
+           "target": 3
+          }   
         ]
     };  
 
@@ -95,13 +119,13 @@
             .data(main.graph.links)
             .enter().append("line")
             .attr("class", "link")
-            .attr('id', function(d){ return d.source.name+'-'+d.target.name})
+            .attr('id', function(d){ return d.source.id+'-'+d.target.id})
             .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
         nodeVar = nodeG.selectAll(".node")
             .data(main.graph.nodes)
             .enter().append("circle")
-            .attr('id', function(d){return d.name;})
+            .attr('id', function(d){return d.id;})
             .attr("class", "node")
             .attr("r", nodeRadius);
 
@@ -133,9 +157,9 @@
         var exitingLinks = linkVar.exit();
         exitingLinks.remove();
         var newLinks = linkVar.enter();
-        newLinks.insert("line",".node").attr("class","link");
+        newLinks.insert("line",".node").attr("class","link").attr('id', function(d){ return d.source.id+'-'+d.target.id});
 
-        nodeVar = nodeVar.data(main.graph.nodes,function(d){return d.name;});
+        nodeVar = nodeVar.data(main.graph.nodes,function(d){return d.id;});
         var exitingNodes = nodeVar.exit();
         exitingNodes.remove();
         var newNodes = nodeVar.enter();
@@ -266,15 +290,16 @@
                 if(hasClass(e, 'node')) {
                     console.log("on node")
                     // console.log($(e).attr('id'))
-                    var curNodeId = "#" + $(e).attr('id');
+                    var curNodeName = $(e).attr('id');
                     if(hasClass(e,'expanded')){
-                        svgRemoveClass(curNodeId,'expanded');
-                        main.graph.nodes.pop();
-                        main.graph.links.pop();
+                        svgRemoveClass("#"+curNodeName,'expanded');                        
+                        collapseNode(curNodeName);
                     }else{
-                        svgAddClass(curNodeId,'expanded');
-                        main.graph.nodes.push({"name":"New_Node","group":1})
-                        main.graph.links.push({"source":8,"target":1,"value":1});
+                        svgAddClass("#"+curNodeName,'expanded');
+                        // main.graph.nodes.push({"name":"New_Node","group":1})
+                        // main.graph.links.push({"source":8,"target":1,"value":1});
+                        // console.log("attempting to expand ",curNodeName)
+                        expandNode(curNodeName);
                     }
                     main.updateGraph();
                 }else{
@@ -630,7 +655,7 @@
         var select = [];
         d3.selectAll('.node').each(function(n){
             if(isCircleInPoly(poly,n,50)) {
-                select.push('#'+ n.name);
+                select.push('#'+ n.id);
             }
         });
         return select;
@@ -642,7 +667,7 @@
         var select = [];
         d3.selectAll('.link').each(function(l){
             if(lineIntersect(pt1,pt2,l.source,l.target)) {
-                select.push('#'+l.source.name+'-'+l.target.name);
+                select.push('#'+l.source.id+'-'+l.target.id);
             }
         });
         return select;
@@ -731,19 +756,39 @@
     }
 
     function collapseNode(nodeName){
-        var nodesToDelete = [];
+        var nodesToDelete = [], linksToDelete = [];
         for(var i=0;i<main.graph.links.length;i++){
             var curLink = main.graph.links[i];
             var n1=curLink.source,n2=curLink.target;
             if((n1.name==nodeName)){
                 if(isRemovableNode(n2.name)){
-                    nodesToDelete
+                    nodesToDelete.push(n2.name);
+                    var linksToRemove = getLinks(n2.name);
+                    for(var linkIndex =0;linkIndex < linksToRemove.length;linkIndex++){
+                        linksToDelete.push(linksToRemove[linkIndex]);
+                    }
                 }
             }else if((n2.name==nodeName)){
                 if(isRemovableNode(n1.name)){
-                    
+                    nodesToDelete.push(n2.name);   
+                    var linksToRemove = getLinks(n1.name);
+                    for(var linkIndex =0;linkIndex < linksToRemove.length;linkIndex++){
+                        linksToDelete.push(linksToRemove[linkIndex]);
+                    }
                 }
             }
+        }
+        for(var i=0;i<linksToDelete.length;i++){
+            var x = main.graph.links.indexOf(linksToDelete[i]);
+            if(x != -1) {
+                main.graph.links.splice(x, 1);
+            }
+        }
+        for(var i=0;i<nodesToDelete.length;i++){
+            var x = main.graph.nodes.indexOf(nodesToDelete[i]);
+            if(x != -1) {
+                main.graph.nodes.splice(x, 1);
+            }        
         }
     }
 
@@ -758,6 +803,16 @@
         return (linkCount>1) ? false : true;
     }
 
+    function getLinks(nodeName){
+        var links = [];
+        for(var i=0;i<main.graph.links.length;i++){
+            var curLink = main.graph.links[i];
+            if(curLink.source.name == targetNode.name || curLink.target.name == targetNode.name){
+                links.push(curLink);
+            }
+        }
+        return links;
+    }
 
     function isExistingLink(currentLink){
         for(var i=0;i<main.graph.links.length;i++){
@@ -772,6 +827,75 @@
             }
         }
         return -1;
+    }
+
+    function getNodeIndexByNameInVis(nodeName){
+        for(var i=0;i<main.graph.nodes.length;i++){
+            var curNode = main.graph.nodes[i];
+            if(curNode.name==nodeName){
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function getNodeIndexByNameFromDb(nodeName){
+        for(var i=0;i<graphDb.nodes.length;i++){
+            var curNode = graphDb.nodes[i];
+            if(curNode.name==nodeName){
+                return i;
+            }
+        }
+        return -1;   
+    }
+
+    function expandNode(nodeName){
+        var partnerList = getConnectedNodesFromDb(nodeName);
+        // console.log(partnerList)
+        for(var i=0;i<partnerList.length;i++){
+                if(getNodeIndexByNameInVis(partnerList[i])!=-1){ // if partner exists in viz
+                    var sindex = getNodeIndexByNameInVis(nodeName);
+                    var tindex = getNodeIndexByNameInVis(partnerList[i]);
+                    if(sindex>-1 && tindex>-1){
+                        var partnerNode = main.graph.nodes[tindex];
+                        var currentLink = {"source":sindex,"target":tindex};
+                        if(isExistingLink(currentLink)==-1){ // if current link does not already exist
+                            main.graph.links.push(currentLink)
+                        }                        
+                    }
+                }else{ //if partner does not exist in viz, add and create link
+                    var nodeIndex = getNodeIndexByNameFromDb(partnerList[i]);
+                    var newNode = {
+                        "name":partnerList[i],
+                        "id":graphDb.nodes[nodeIndex].id
+                    };
+                    console.log(newNode)
+                    main.graph.nodes.push(newNode);                    
+                    var sindex = getNodeIndexByNameInVis(nodeName);
+                    var tindex = getNodeIndexByNameInVis(partnerList[i]);
+                    if(sindex>-1 && tindex>-1){
+                        var currentLink = {"source":sindex,"target":tindex};
+                        if(isExistingLink(currentLink)==-1){ // if current link does not already exist
+                            main.graph.links.push(currentLink);
+                    }
+            }
+            }
+        }
+    }
+
+    function getConnectedNodesFromDb(nodeName){
+        var nodeIndex = getNodeIndexByNameFromDb(nodeName);
+        // console.log(nodeName,nodeIndex)
+        var connectedNodes = [];
+        for(var i=0;i<graphDb.links.length;i++){
+            var curLink = graphDb.links[i];
+            if(curLink.source==nodeIndex){
+                connectedNodes.push(graphDb.nodes[curLink.target].name);
+            }else if(curLink.target==nodeIndex){
+                connectedNodes.push(graphDb.nodes[curLink.source].name);
+            }
+        }
+        return connectedNodes;
     }
 
     main.loadData = function(params) {
