@@ -197,7 +197,8 @@
 
         newNodes.append("circle")
              .attr("r", nodeRadius)
-             .attr("class","node");
+             .attr("class","node")
+             .attr("id",function(d){return d.id;});
 
         nodeVar.append("title")
             .text(function(d) { return d.name; });
@@ -234,8 +235,6 @@
                 for(var i =0 ;i<pressCentersForTransform.length;i++){
                     transformedPressCenters.push(convertToPoint(pressCentersForTransform[i].x,pressCentersForTransform[i].y))
                 }
-                console.log(press.centers.slice(0))
-                console.log(transformedPressCenters)
                 swipe = {time: event.timeStamp, transformedCenters: transformedPressCenters.slice(0), centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length, firstPointers: event.pointers};
             }
             if (swipe) {
