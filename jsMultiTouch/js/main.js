@@ -290,16 +290,16 @@
                 if(hasClass(e, 'node')) {
                     console.log("on node")
                     // console.log($(e).attr('id'))
-                    var curNodeName = $(e).attr('id');
+                    var curNodeId = $(e).attr('id');
                     if(hasClass(e,'expanded')){
-                        svgRemoveClass("#"+curNodeName,'expanded');                        
-                        collapseNode(curNodeName);
+                        svgRemoveClass("#"+curNodeId,'expanded');                        
+                        collapseNode(curNodeId);
                     }else{
-                        svgAddClass("#"+curNodeName,'expanded');
+                        svgAddClass("#"+curNodeId,'expanded');
                         // main.graph.nodes.push({"name":"New_Node","group":1})
                         // main.graph.links.push({"source":8,"target":1,"value":1});
                         // console.log("attempting to expand ",curNodeName)
-                        expandNode(curNodeName);
+                        expandNode(curNodeId);
                     }
                     main.updateGraph();
                 }else{
@@ -748,33 +748,34 @@
             //     n1 = curLink.source;
             //     n2 = curLink.target;
             // }
-            if((n1.name==node1.name && n2.name==node2.name) || (n1.name==node2.name && n2.name==node1.name)){
+            if((n1.id==node1.id && n2.id==node2.id) || (n1.id==node2.id && n2.id==node1.id)){
                 return 1;
             }
         }
         return -1;
     }
 
-    function collapseNode(nodeName){
+    function collapseNode(nodeId){
         var nodesToDelete = [], linksToDelete = [];
         for(var i=0;i<main.graph.links.length;i++){
             var curLink = main.graph.links[i];
             var n1=curLink.source,n2=curLink.target;
-            if((n1.name==nodeName)){
-                if(isRemovableNode(n2.name)){
-                    nodesToDelete.push(n2.name);
-                    var linksToRemove = getLinks(n2.name);
+            if((n1.id==nodeId)){
+                if(isRemovableNode(n2)){
+                    console.log(n2)
+                    var linksToRemove = getLinks(n2);
                     for(var linkIndex =0;linkIndex < linksToRemove.length;linkIndex++){
                         linksToDelete.push(linksToRemove[linkIndex]);
                     }
+                    nodesToDelete.push(n2);                    
                 }
-            }else if((n2.name==nodeName)){
-                if(isRemovableNode(n1.name)){
-                    nodesToDelete.push(n2.name);   
-                    var linksToRemove = getLinks(n1.name);
+            }else if((n2.id==nodeId)){
+                if(isRemovableNode(n1)){
+                    var linksToRemove = getLinks(n1);
                     for(var linkIndex =0;linkIndex < linksToRemove.length;linkIndex++){
                         linksToDelete.push(linksToRemove[linkIndex]);
                     }
+                    nodesToDelete.push(n1);
                 }
             }
         }
@@ -796,18 +797,18 @@
         var linkCount = 0;
         for(var i=0;i<main.graph.links.length;i++){
             var curLink = main.graph.links[i];
-            if(curLink.source.name == targetNode.name || curLink.target.name == targetNode.name){
+            if(curLink.source.id == targetNode.id || curLink.target.id == targetNode.id){
                 linkCount += 1;
             }
         }
         return (linkCount>1) ? false : true;
     }
 
-    function getLinks(nodeName){
+    function getLinks(targetNode){
         var links = [];
         for(var i=0;i<main.graph.links.length;i++){
             var curLink = main.graph.links[i];
-            if(curLink.source.name == targetNode.name || curLink.target.name == targetNode.name){
+            if(curLink.source.id == targetNode.id || curLink.target.id == targetNode.id){
                 links.push(curLink);
             }
         }
@@ -829,33 +830,32 @@
         return -1;
     }
 
-    function getNodeIndexByNameInVis(nodeName){
+    function getNodeIndexByIdInVis(nodeId){
         for(var i=0;i<main.graph.nodes.length;i++){
             var curNode = main.graph.nodes[i];
-            if(curNode.name==nodeName){
+            if(curNode.id==nodeId){
                 return i;
             }
         }
         return -1;
     }
 
-    function getNodeIndexByNameFromDb(nodeName){
+    function getNodeIndexByIdFromDb(nodeId){
         for(var i=0;i<graphDb.nodes.length;i++){
             var curNode = graphDb.nodes[i];
-            if(curNode.name==nodeName){
+            if(curNode.id==nodeId){
                 return i;
             }
         }
         return -1;   
     }
 
-    function expandNode(nodeName){
-        var partnerList = getConnectedNodesFromDb(nodeName);
-        // console.log(partnerList)
+    function expandNode(nodeId){
+        var partnerList = getConnectedNodesFromDb(nodeId);
         for(var i=0;i<partnerList.length;i++){
-                if(getNodeIndexByNameInVis(partnerList[i])!=-1){ // if partner exists in viz
-                    var sindex = getNodeIndexByNameInVis(nodeName);
-                    var tindex = getNodeIndexByNameInVis(partnerList[i]);
+                if(getNodeIndexByIdInVis(partnerList[i])!=-1){ // if partner exists in viz
+                    var sindex = getNodeIndexByIdInVis(nodeId);
+                    var tindex = getNodeIndexByIdInVis(partnerList[i]);
                     if(sindex>-1 && tindex>-1){
                         var partnerNode = main.graph.nodes[tindex];
                         var currentLink = {"source":sindex,"target":tindex};
@@ -864,15 +864,15 @@
                         }                        
                     }
                 }else{ //if partner does not exist in viz, add and create link
-                    var nodeIndex = getNodeIndexByNameFromDb(partnerList[i]);
+                    var nodeIndex = getNodeIndexByIdFromDb(partnerList[i]);
                     var newNode = {
-                        "name":partnerList[i],
-                        "id":graphDb.nodes[nodeIndex].id
+                        "name":graphDb.nodes[nodeIndex].name,
+                        "id":partnerList[i]
                     };
-                    console.log(newNode)
+                    
                     main.graph.nodes.push(newNode);                    
-                    var sindex = getNodeIndexByNameInVis(nodeName);
-                    var tindex = getNodeIndexByNameInVis(partnerList[i]);
+                    var sindex = getNodeIndexByIdInVis(nodeId);
+                    var tindex = getNodeIndexByIdInVis(partnerList[i]);
                     if(sindex>-1 && tindex>-1){
                         var currentLink = {"source":sindex,"target":tindex};
                         if(isExistingLink(currentLink)==-1){ // if current link does not already exist
@@ -883,16 +883,16 @@
         }
     }
 
-    function getConnectedNodesFromDb(nodeName){
-        var nodeIndex = getNodeIndexByNameFromDb(nodeName);
+    function getConnectedNodesFromDb(nodeId){
+        var nodeIndex = getNodeIndexByIdFromDb(nodeId);
         // console.log(nodeName,nodeIndex)
         var connectedNodes = [];
         for(var i=0;i<graphDb.links.length;i++){
             var curLink = graphDb.links[i];
             if(curLink.source==nodeIndex){
-                connectedNodes.push(graphDb.nodes[curLink.target].name);
+                connectedNodes.push(graphDb.nodes[curLink.target].id);
             }else if(curLink.target==nodeIndex){
-                connectedNodes.push(graphDb.nodes[curLink.source].name);
+                connectedNodes.push(graphDb.nodes[curLink.source].id);
             }
         }
         return connectedNodes;
