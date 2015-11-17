@@ -278,7 +278,7 @@
             if(hasClass(e, 'node')) {
                 console.log("on node")                
                 var focusNode = getFocusNode(event.center.x,event.center.y);
-                main.drawDetailedSelectionMode(focusNode);
+                main.drawDetailedSelectionMode(focusNode);                            
             }else{
                 console.log("on bg")
                 if(main.contextMenu) dismissContextMenu();
@@ -762,7 +762,6 @@
             var n1=curLink.source,n2=curLink.target;
             if((n1.id==nodeId)){
                 if(isRemovableNode(n2)){
-                    console.log(n2)
                     var linksToRemove = getLinks(n2);
                     for(var linkIndex =0;linkIndex < linksToRemove.length;linkIndex++){
                         linksToDelete.push(linksToRemove[linkIndex]);
@@ -896,6 +895,25 @@
             }
         }
         return connectedNodes;
+    }
+
+    function deleteNode(node){
+        var nodeToDeleteIndex = main.graph.nodes.indexOf(node);
+        if(nodeToDeleteIndex!=-1){
+            main.graph.nodes.splice(nodeToDeleteIndex,1);
+        }
+        var linksToDelete = [];
+        for(var i=0;i<main.graph.links.length;i++){
+            if((main.graph.links[i]['source']['id']==node.id) || (main.graph.links[i]['target']['id']==node.id)){
+                linksToDelete.push(main.graph.links[i]);
+            }
+        }
+        for(var i=0;i<linksToDelete.length;i++){
+            var x = main.graph.links.indexOf(linksToDelete[i]);
+            if(x != -1) {
+                main.graph.links.splice(x, 1);
+            }
+        }
     }
 
     main.loadData = function(params) {
