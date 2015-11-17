@@ -14,7 +14,7 @@
     var detailedSelectionOn = false;
 
     var isPinch=0,isPan=0;
-    var nodeG, linkG, menuG;
+    var nodeG, linkG, menuG, annotG;
     var startDistance = null;
 
     var moveThreshold = 9;
@@ -25,6 +25,35 @@
     var viewZoom = 1;
     var zoomScale = d3.scale.linear().domain([0,1]).range([1,8]);    
     var color = d3.scale.category20();
+
+    var bundleCA = new ContextAction('BUNDLE', 'bundle', ["M26.7,34.1c1.3,1.4,7.5,4.9,7.5,4.9l2.4-4.7c0,0-10-4.8-9.8-9.6v-6l0,0H31L24,9l-7.1,9.6h0h4.4l0,0v6 "
+    +"c0.1,4.8-9.8,9.6-9.8,9.6l2.4,4.7c0,0,6.2-3.5,7.5-4.9l2.6-2.3L26.7,34.1z"]);
+
+    var collapseCA = new ContextAction('COLLAPSE', 'collapse', ["M26,22 L27.7,11 L30.6,13.9 L36.5,8 L40,11.5 L34,17.4 L37,20.3 L26,22",
+        "M22,26 L20.3,37 L17.4,34.1 L11.5,40 L8,36.5 L13.9,30.6 L11,27.7 L22,26",
+        "M22,22 L11,20.3 L13.9,17.4 L8,11.5 L11.5,8 L17.4,13.9 L20.3,11 L22,22",
+        "M26,26 L37,27.7 L34.1,30.6 L40,36.5 L36.5,40 L30.6,34.1 L27.7,37 L26,26"]);
+
+    var expandCA = new ContextAction('EXPAND', 'expand', ["M40,8 L38.3,19 L35.4,16.1 L29.5,22 L26,18.5 L31.9,12.6 L29,9.7 L40,8",
+        "M8,40 L9.7,29 L12.6,31.9 L18.5,26 L22,29.5 L16.1,35.4 L19,38.3 L8,40",
+        "M8,8 L19,9.7 L16.1,12.6 L22,18.5 L18.5,22 L12.6,16.1 L9.7,19 L8,8",
+        "M40,40 L29,38.3 L31.9,35.4 L26,29.5 L29.5,26 L35.4,31.9 L38.3,29 L40,40"]);
+
+    var removeCA = new ContextAction('REMOVE', 'remove', ["M39,11.3 L36.7,9 L24,21.7 L11.3,9 L9,11.3 L21.7,24 L9,36.7 L11.3,39 L24,26.3 L36.7,39 L39,36.7 L26.3,24 L39,11.3"]);
+
+    var linkCA = new ContextAction('SEL LINKS', 'selectlinks', ["M35.2,30.6c-1.7,0-3.1,0.7-4.1,1.9l-13-7c0.1-0.5,0.2-1,0.2-1.5s-0.1-1-0.2-1.5l13-7c1,1.2,2.5,1.9,4.1,1.9 "
+        +"c3,0,5.5-2.4,5.5-5.5c0-3-2.5-5.5-5.5-5.5c-3,0-5.5,2.5-5.5,5.5c0,0.5,0.1,1,0.2,1.5l-13,7c-1-1.1-2.5-1.9-4.1-1.9 "
+        +"c-3,0-5.5,2.4-5.5,5.4s2.5,5.4,5.5,5.4c1.6,0,3.1-0.7,4.1-1.9l13,7c-0.1,0.5-0.2,1-0.2,1.5c0,3,2.5,5.5,5.5,5.5c3,0,5.5-2.5,5.5-5.5 "
+        +"C40.7,33,38.2,30.6,35.2,30.6z"]);
+
+    var nodeCA = new ContextAction('SEL NODES', 'selectnodes', ["M35.2,30.6c-1.7,0-3.1,0.7-4.1,1.9l-13-7c0.1-0.5,0.2-1,0.2-1.5s-0.1-1-0.2-1.5l13-7c1,1.2,2.5,1.9,4.1,1.9 "
+    +"c3,0,5.5-2.4,5.5-5.5c0-3-2.5-5.5-5.5-5.5c-3,0-5.5,2.5-5.5,5.5c0,0.5,0.1,1,0.2,1.5l-13,7c-1-1.1-2.5-1.9-4.1-1.9 "
+    +"c-3,0-5.5,2.4-5.5,5.4s2.5,5.4,5.5,5.4c1.6,0,3.1-0.7,4.1-1.9l13,7c-0.1,0.5-0.2,1-0.2,1.5c0,3,2.5,5.5,5.5,5.5c3,0,5.5-2.5,5.5-5.5 "
+    +"C40.7,33,38.2,30.6,35.2,30.6z"]);
+
+    var linkCMList = [removeCA,bundleCA,nodeCA];
+    var nodeCMList = [removeCA,expandCA,collapseCA,linkCA];
+
 
     main.graph = {
         "nodes":[
@@ -100,7 +129,9 @@
 
         zoomed();
 
-        createContextMenu();
+        // Create the context menus to be used later
+        createContextMenu(linkCMList,'link');
+        createContextMenu(nodeCMList,'node');
 
         // Load the data after we've set up the vis
         main.loadData(params);               
@@ -353,14 +384,10 @@
                 force.resume();
                 main.tick();                   
             }else{
-                console.log("swipe end")
+                console.log("swipe end");
+                var pt = convertToPoint(event.center.x,event.center.y);
                 // Set up the context menu at this point for the selected links
-                if(linkQuery!=""){
-                    d3.select('#contextmenu')
-                    .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
-                    .attr('visibility', 'visible');
-                    main.contextMenu = true;                       
-                }                
+                if(linkQuery!="") showContextMenu(event,'link');
             }
             eventCleanup();
         }
@@ -538,14 +565,9 @@
         svgAddClass(nodeQuery,'selected');
         if(event.isFinal==true){ // checks if it is the end of a swipe event, if yes then resets the swipe.centers list
             // Set up the context menu at this point for the selected links
-            d3.select('#contextmenu')
-                .attr('transform',  'translate('+(event.center.x)+','+(event.center.y)+')')
-                .attr('visibility', 'visible');
+            if($('.node.selected').length > 0) showContextMenu(event,'node');
 
-            main.contextMenu = true;
-
-            // TODO set up listeners here
-
+            // Clean up after the event
             eventCleanup();
             console.log("three finger swipe end")
         }
@@ -567,6 +589,21 @@
         isPan = 0;
     }
 
+    function showContextMenu(event, type) {
+        var pt = convertToPoint(event.center.x,event.center.y);
+
+        // Set the context menu flag to be true
+        main.contextMenu = true;
+
+
+        // Move the context menu to the correct point and show it
+        d3.select('#contextmenu-'+type)
+            .attr('transform',  'translate('+(pt.x)+','+(pt.y)+')')
+            .attr('visibility', 'visible');
+
+
+    }
+
     function dismissContextMenu(){
         main.contextMenu = false;
         // just move the context menu to the origin, that should be off-screen
@@ -575,42 +612,32 @@
             .attr('visibility', 'hidden');
     }
 
-    function createContextMenu() {
-        var slices = [];
+    function createContextMenu(list,type) {
         var cmInnerRadius = 35;
         var cmOuterRadius = 115;
         var cmInnerMargin = 4/cmInnerRadius;
         var cmOuterMargin = 4/cmOuterRadius;
 
-        var modes = ['DELETE, BUNDLE, CLEAR'];
-
-        var trashIcon = ["M116,161.7c0-0.1-0.1-0.3-0.3-0.4c-1.1,1.1-5.5,1.3-10.7,1.3s-9.6-0.2-10.7-1.3c-0.1,0.1-0.2,0.3-0.3,0.4h0"
-        +"l0,0.1c0,0,0,0,0,0c0,0,0,0,0,0.1l0.9,17.5h0c0.1,1.4,1.6,3.4,10.1,3.4c8.5,0,10.1-2.1,10.1-3.4h0l0.9-17.5c0,0,0,0,0-0.1"
-        +"C116,161.8,116,161.8,116,161.7L116,161.7L116,161.7z",
-            "M110.2,152.5v-4.1c0-0.7-0.6-1.4-1.4-1.4h-8.2c-0.7,0-1.4,0.6-1.4,1.4v4.2c-4,0.5-6.8,1.4-6.8,2.5v2"
-            +"c0,0.4,0.4,0.8,1.2,1.2c2,0.9,6.3,1.6,11.3,1.6c5,0,9.3-0.7,11.3-1.6c0.8-0.4,1.2-0.8,1.2-1.2v-2"
-            +"C117.5,153.9,114.5,152.9,110.2,152.5z M101.9,152.3l-0.3,0v-1.7c0-0.7,0.1-1.4,0.2-1.4c0.1,0,0.8,0,1.6,0h2.7c0.7,0,1.5,0,1.6,0"
-            +"c0.1,0,0.2,0.6,0.2,1.4v1.7c-0.9,0-1.9-0.1-3-0.1C103.9,152.2,102.9,152.3,101.9,152.3z"];
-
-        var deg = 2*Math.PI/(3);
-        for(var i = 0; i < (3); i++) {
+        var deg = 2*Math.PI/(list.length);
+        for(var i = 0; i < (list.length); i++) {
             var mid = Math.PI/2 + i*deg;
-            // console.log(mid*180/Math.PI);
             var start = mid - deg/2;
             var end = mid + deg/2;
-            slices.push({angle: mid, start: start, end: end});
+            list[i].angle = mid;
+            list[i].start = start;
+            list[i].end = end;
         }
 
         // Can't do more than 8 modes, also need to have the delete but always be at the bottom
         var cm = menuG.append('g')
-            .attr('id', 'contextmenu');
+            .attr('id', 'contextmenu-'+type);
 
         var select = cm.selectAll('.contextmenu-slice')
-            .data(slices, function(d){return d.angle;});
+            .data(list, function(d){return d.angle;});
 
         var enter = select.enter().append('g')
-            .attr('id', function(d,i){return 'slice-'+((i==0)?'r':(i-1));})
-            .attr('class', function(d,i){return'contextmenu-slice'+(i==0?'':' slice-mode');});
+            .attr('id', function(d){return 'slice-'+ d.classname;})
+            .attr('class','contextmenu-slice');
 
         // add the path that defines the slice of the contextmenu first
         enter.append('path')
@@ -625,28 +652,23 @@
 
         var middle = enter.append('g')
             .attr('class', 'middle')
-            .attr('transform', function(d){return'translate('+(Math.cos(d.angle)*(cmOuterRadius-cmInnerRadius*1.25))+','
+            .attr('transform', function(d){return'translate('+(Math.cos(d.angle)*(cmOuterRadius-cmInnerRadius))+','
                 + (Math.sin(d.angle)*(cmOuterRadius-cmInnerRadius*1.25))+')';});
 
         middle.append('text')
             .attr('class', 'contextmenu-label')
             .attr('y', '22px')
-            .text(function(d,i){return modes[i];});
+            .attr('fill', '#fff')
+            .text(function(d){return d.displayName;});
 
-        var deleteMiddle = d3.select('#slice-r .middle');
+        var icon = middle.append('g')
+            .attr('class', 'contextmenu-icon')
+            .attr('transform', 'translate(-24,-38)');
 
-        deleteMiddle.append('path')
-            .style('-webkit-transform', 'translate(-104px,-176px)')
-            .style('fill', '#F00')
-            .style('fill-opacity', '0.5')
-            .attr('d', trashIcon[0]);
-
-        deleteMiddle.append('path')
-            .style('transform', 'translate(-104px,-176px)')
-            .style('-webkit-transform', 'translate(-104px,-176px)')
-            .style('fill', '#F00')
-            .style('fill-opacity', '0.5')
-            .attr('d', trashIcon[1]);
+        icon.selectAll('path').data(function(d){return d.icon;})
+            .enter().append('path')
+            .attr('fill', '#fff')
+            .attr('d', function(d){return d;});
 
         cm.attr('visibility', 'hidden');
     }

@@ -6,6 +6,12 @@ function hasClass(elem, cls) {
     return (' ' + ((elem.className instanceof SVGAnimatedString) ? elem.className.baseVal : elem.className) + ' ').indexOf(' ' + cls + ' ') > -1;
 }
 
+ContextAction = function(displayName,className,icon) {
+    this.displayName = displayName;
+    this.className = className;
+    this.icon = icon;
+};
+
 /**
  *
  * @param s0
@@ -224,7 +230,7 @@ Array.prototype.getUnique = function(){
         u[this[i]] = 1;
     }
     return a;
-}
+};
 
 function pointInCircle(cx,cy,px,py,r){
     return Math.sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy)) < r;
