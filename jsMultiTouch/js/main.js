@@ -10,6 +10,9 @@
     data = {};
 
     var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer ,panThreshold = 0, pinchThreshold =0;    
+    var nodeRadius = 50;
+    var detailedSelectionOn = false;
+
     var isPinch=0,isPan=0;
     var nodeG, linkG, menuG;
     var startDistance = null;
@@ -50,6 +53,9 @@
      * @param params - functions as the context of the tool
      */
     main.init = function (params) {
+        $("#vis").on('contextmenu', function(e) {        
+            return false;
+        })
   //       Initialize things for the overall visualization
         chart = d3.select("#vis");
         height = params.height || 500;
@@ -97,7 +103,7 @@
             .enter().append("circle")
             .attr('id', function(d){return d.name;})
             .attr("class", "node")
-            .attr("r", 50);
+            .attr("r", nodeRadius);
 
         nodeVar.append("title")
             .text(function(d) { return d.name; });
@@ -135,7 +141,7 @@
         var newNodes = nodeVar.enter();
 
         newNodes.append("circle")
-             .attr("r", 50)
+             .attr("r", nodeRadius)
              .attr("class","node");
 
         nodeVar.append("title")
@@ -168,12 +174,20 @@
             if(!swipe && (event.distance > moveThreshold || (press && press.touches == 2))) { // TODO: check the 2nd condition since it is invoking a touchend event (2nd case below) at the start of two-finger swipe
                 press.centers.push(event.center);
                 press.events.push(event);
-                swipe = {time: event.timeStamp, centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length, firstPointers: event.pointers};
+                var pressCentersForTransform = press.centers.slice(0);
+                var transformedPressCenters = [];
+                for(var i =0 ;i<pressCentersForTransform.length;i++){
+                    transformedPressCenters.push(convertToPoint(pressCentersForTransform[i].x,pressCentersForTransform[i].y))
+                }
+                console.log(press.centers.slice(0))
+                console.log(transformedPressCenters)
+                swipe = {time: event.timeStamp, transformedCenters: transformedPressCenters.slice(0), centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length, firstPointers: event.pointers};
             }
             if (swipe) {
                 if(event.timeStamp > swipe.time) {
                     swipe.time = event.timeStamp;
                     swipe.centers.push(event.center);
+                    swipe.transformedCenters.push(convertToPoint(event.center.x,event.center.y));
                     swipe.events.push(event);
                     if(event.pointers.length > swipe.touches) {
                         // update first pointers for the event
@@ -233,15 +247,18 @@
             console.log("single press handler")
             // console.log(press.events[1].timeStamp-press.events[0].timeStamp)
             if((press.events[1].timeStamp-press.events[0].timeStamp)>125){
-                console.log("long press")
+                console.log("long press")                
             }else{
                 console.log("tap")
             }
             if(hasClass(e, 'node')) {
-                console.log("on node")
+                console.log("on node")                
+                var focusNode = getFocusNode(event.center.x,event.center.y);
+                main.drawDetailedSelectionMode(focusNode);
             }else{
                 console.log("on bg")
                 if(main.contextMenu) dismissContextMenu();
+                main.refreshGraphVis();
             }            
         }else{
             if(tapCount==2){
@@ -452,12 +469,14 @@
         // Reduce the points in the swipe if time has passed beyond threshold
         if(swipe.events.length > 2 ) {
             swipe.centers = pointReduction(swipe.centers);
+            swipe.transformedCenters = pointReduction(swipe.transformedCenters);
         }
 
         annotG.selectAll('.swipetrace').remove();
         
         var traceSelect = annotG.selectAll('.swipetrace')
-            .data([swipe.centers], function(d){return d.length});
+            // .data([swipe.centers], function(d){return d.length});
+            .data([swipe.transformedCenters], function(d){return d.length});
 
         traceSelect.enter().append('path')
             .attr('d', function(d){
@@ -481,8 +500,8 @@
 
         var nodeSelect = [];
         // check which links the swipe encloses in a convex shape
-        for(var i = 1; i < swipe.centers.length; i++) {
-            nodeSelect = nodeSelect.concat(getNodesInside(swipe.centers));
+        for(var i = 1; i < swipe.transformedCenters.length; i++) {
+            nodeSelect = nodeSelect.concat(getNodesInside(swipe.transformedCenters));
         }
         // turn all of the selectors into a selection string
         var nodeQuery = '';
@@ -610,7 +629,6 @@
     function getNodesInside(poly) {
         var select = [];
         d3.selectAll('.node').each(function(n){
-
             if(isCircleInPoly(poly,n,50)) {
                 select.push('#'+ n.name);
             }
@@ -619,9 +637,11 @@
     }
 
     function getPassThroughLinks(p1,p2) {
+        var pt1 = convertToPoint(p1.x,p1.y);
+        var pt2 = convertToPoint(p2.x,p2.y);
         var select = [];
         d3.selectAll('.link').each(function(l){
-            if(lineIntersect(p1,p2,l.source,l.target)) {
+            if(lineIntersect(pt1,pt2,l.source,l.target)) {
                 select.push('#'+l.source.name+'-'+l.target.name);
             }
         });
@@ -663,6 +683,95 @@
                 curNode.fixed = true;
             }
         });
+    }
+
+    main.drawDetailedSelectionMode = function(focusNode){
+        d3.selectAll(".link")
+            .style("stroke-opacity",function(curLink){
+                if(curLink.source.name == focusNode.name || curLink.target.name==focusNode.name){
+                    return 1;
+                }else{
+                    return 0.3;
+                }
+            });
+        d3.selectAll(".node")
+            .style("fill-opacity",function(curNode){
+                if(curNode.name == focusNode.name || isPartner(curNode,focusNode)==1){
+                    return 1;
+                }else{
+                    return 0.5;
+                }
+            });
+    }
+
+    main.refreshGraphVis = function(){
+        d3.selectAll(".link")
+            .style("stroke-opacity",1);
+        d3.selectAll(".node")
+            .style("fill-opacity",1);
+    }
+
+    function isPartner(node1,node2){
+        console.log(main.graph.links.length);
+        for(var i =0 ;i< main.graph.links.length;i++){
+            var curLink = main.graph.links[i];
+            var n1=curLink.source,n2=curLink.target;
+            // if (curLink.source === parseInt(curLink.source, 10)){
+            //     n1 = main.graph.nodes[curLink.source];
+            //     n2 = main.graph.nodes[curLink.target];
+            // }else{
+            //     n1 = curLink.source;
+            //     n2 = curLink.target;
+            // }
+            if((n1.name==node1.name && n2.name==node2.name) || (n1.name==node2.name && n2.name==node1.name)){
+                return 1;
+            }
+        }
+        return -1;
+    }
+
+    function collapseNode(nodeName){
+        var nodesToDelete = [];
+        for(var i=0;i<main.graph.links.length;i++){
+            var curLink = main.graph.links[i];
+            var n1=curLink.source,n2=curLink.target;
+            if((n1.name==nodeName)){
+                if(isRemovableNode(n2.name)){
+                    nodesToDelete
+                }
+            }else if((n2.name==nodeName)){
+                if(isRemovableNode(n1.name)){
+                    
+                }
+            }
+        }
+    }
+
+    function isRemovableNode(targetNode){
+        var linkCount = 0;
+        for(var i=0;i<main.graph.links.length;i++){
+            var curLink = main.graph.links[i];
+            if(curLink.source.name == targetNode.name || curLink.target.name == targetNode.name){
+                linkCount += 1;
+            }
+        }
+        return (linkCount>1) ? false : true;
+    }
+
+
+    function isExistingLink(currentLink){
+        for(var i=0;i<main.graph.links.length;i++){
+            if(((main.graph.nodes[currentLink.source] == main.graph.links[i].source) && (main.graph.nodes[currentLink.target] == main.graph.links[i].target)) || ((main.graph.nodes[currentLink.source] == main.graph.links[i].target) && (main.graph.nodes[currentLink.target] == main.graph.links[i].source)) || ((main.graph.nodes[currentLink.target] == main.graph.links[i].source) && (main.graph.nodes[currentLink.source] == main.graph.links[i].target))){
+                return 1;
+            }
+        }
+
+        for(var i=0;i<main.graph.links.length;i++){
+            if(((currentLink.source == main.graph.links[i].source) && (currentLink.target == main.graph.links[i].target)) || ((currentLink.source == main.graph.links[i].target) && (currentLink.target == main.graph.links[i].source)) || ((currentLink.target == main.graph.links[i].source) && (currentLink.source == main.graph.links[i].target))){
+                return 1;
+            }
+        }
+        return -1;
     }
 
     main.loadData = function(params) {

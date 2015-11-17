@@ -23,7 +23,7 @@
 
 .link {
   stroke: #ccc;
-  stroke-opacity: .6;
+  stroke-opacity: 1;
 }
 
 .link.selected {
