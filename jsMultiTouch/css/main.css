@@ -17,6 +17,10 @@
     stroke-width: 2.5px;
 }   
 
+.node.isFixed {
+    stroke-dasharray: 5,5;
+}
+
 .node.expanded {
     fill: #ccc;
 }

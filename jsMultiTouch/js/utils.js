@@ -250,10 +250,10 @@ function svgAddClass(selector, cls) {
 function svgRemoveClass(selector, cls) {
     $(selector).each(function(i,n){
         if(n.className instanceof SVGAnimatedString) {
-            n.className.baseVal = (' '+n.className.baseVal+' ').replace(' '+cls+' ').trim();
-            n.className.animVal = (' '+n.className.animVal+' ').replace(' '+cls+' ').trim();
+            n.className.baseVal = (' '+n.className.baseVal+' ').replace(' '+cls+' ',' ').trim();
+            n.className.animVal = (' '+n.className.animVal+' ').replace(' '+cls+' ',' ').trim();
         } else {
-            n.removeClass(cls);
+            n.className = (' '+n.className+' ').replace(' '+cls+' ',' ').trim();
         }
     });
 }
