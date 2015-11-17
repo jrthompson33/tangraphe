@@ -7,14 +7,19 @@
 }
 
 .node {
-      stroke: #000;
-      stroke-width: 1.5px;
+    fill: steelblue;
+    stroke: #000;
+    stroke-width: 1.5px;
 }
 
 .node.selected {
-      stroke: #f00;
-      stroke-width: 2.5px;
+    stroke: #f00;
+    stroke-width: 2.5px;
 }   
+
+.node.expanded {
+    fill: #ccc;
+}
 
 .link {
   stroke: #ccc;

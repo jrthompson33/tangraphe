@@ -18,9 +18,9 @@
     var swipeReduceTime = 10;
     var longPressThreshold = 15;
     var longPressTimeout = 350;
-    var viewCenter = {x:0,y:0};
+    var viewCenter;
     var viewZoom = 1;
-    var zoomScale = d3.scale.linear().domain([0,1]).range([1,4]);    
+    var zoomScale = d3.scale.linear().domain([0,1]).range([1,8]);    
     var color = d3.scale.category20();
 
     main.graph = {
@@ -59,11 +59,16 @@
         svg.attr("height", function(d) {return d.height;})
             .attr("width", function(d) {return d.width;});
 
+        // viewCenter = {x:width/2,y:height/2};//{x:0,y:0};
+        viewCenter = {x:0,y:0};
+
         graphContainer = svg.append("g", 'graph-container');
         linkG = graphContainer.append('g').attr('id', 'link-group');
         nodeG = graphContainer.append('g').attr('id', 'node-group');
         annotG = graphContainer.append('g').attr('id', 'annot-group');
         menuG = graphContainer.append('g').attr('id', 'menu-group');
+
+        zoomed();
 
         createContextMenu();
 
@@ -92,8 +97,7 @@
             .enter().append("circle")
             .attr('id', function(d){return d.name;})
             .attr("class", "node")
-            .attr("r", 50)
-            .style("fill", function(d) { return color(d.group); });
+            .attr("r", 50);
 
         nodeVar.append("title")
             .text(function(d) { return d.name; });
@@ -132,8 +136,7 @@
 
         newNodes.append("circle")
              .attr("r", 50)
-             .attr("class","node")
-             .style("fill", function(d) { return color(d.group); });
+             .attr("class","node");
 
         nodeVar.append("title")
             .text(function(d) { return d.name; });
@@ -245,8 +248,17 @@
                 console.log("double tap handler")            
                 if(hasClass(e, 'node')) {
                     console.log("on node")
-                    main.graph.nodes.push({"name":"New_Node","group":1})
-                    main.graph.links.push({"source":8,"target":1,"value":1});
+                    // console.log($(e).attr('id'))
+                    var curNodeId = "#" + $(e).attr('id');
+                    if(hasClass(e,'expanded')){
+                        svgRemoveClass(curNodeId,'expanded');
+                        main.graph.nodes.pop();
+                        main.graph.links.pop();
+                    }else{
+                        svgAddClass(curNodeId,'expanded');
+                        main.graph.nodes.push({"name":"New_Node","group":1})
+                        main.graph.links.push({"source":8,"target":1,"value":1});
+                    }
                     main.updateGraph();
                 }else{
                     console.log("on bg")
@@ -323,7 +335,7 @@
         }
         var curPointX = event.center.x;
         var curPointY = event.center.y;
-        var curScale = event.scale;        
+        var curScale = event.scale; 
         var swipePointsLength = swipe.centers.length;
         
 
@@ -362,18 +374,51 @@
         var movementFromCenter = getDistanceBetweenPoints(event.center,swipe.centers[1]);
 
         if(isPinch==1){
-            viewZoom += zoomDelta;
             if(zoomDelta>0){
                 console.log("pinch out");
+                // viewCenter.x += event.center.x;
+                // viewCenter.y += event.center.y;
             }else{
                 console.log("pinch in");
+                // viewCenter.x -= event.center.x;
+                // viewCenter.y -= event.center.y;
             }
-            // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
+
+            // var dx = width,
+            //       dy = height,
+            //       cx = event.center.x ? event.center.x : dx / 2,
+            //       cy = event.center.y ? event.center.y : dy / 2,
+            //       i = d3.interpolateZoom(
+            //         [(cx - viewCenter.x) / view.k, (cy - viewCenter.y) / view.k, dx / view.k],
+            //         [(cx - viewCenter.x) / view1.k, (cy - viewCenter.y) / view1.k, dx / view1.k]
+            //       );
+            
+            // scalechange = newscale - oldscale;
+
+            // d3.select({}).transition().tween()
+            var newZoom = Math.pow(2, zoomDelta) * viewZoom;
+            newZoom = newZoom > 8 ? 8 : (newZoom < 1 ? 1 : newZoom);
+            // console.log(1-Math.pow(2, zoomDelta));
+
+            // offX = -1 * (event.center.x * zoomDelta);
+            // offY = -1 * (event.center.y * zoomDelta);
+            // viewCenter.x += offX
+            // viewCenter.y += offY
+            // var scaleVal = zoomScale(viewZoom) > 8 ? 8 : zoomScale(viewZoom);
+
+            // console.log(event.center.x*viewZoom);
+            // console.log(adjust);
+            var adjust = {x: (event.center.x - width/2)*(Math.pow(2, zoomDelta)-1), y: (event.center.y - height/2)*(Math.pow(2, zoomDelta)-1)};
+            var translate0 = {x: (width/2 - viewCenter.x)/viewZoom, y: (height/2 - viewCenter.y)/viewZoom};
+            var l = {x: translate0.x * newZoom + viewCenter.x, y: translate0.y * newZoom + viewCenter.y};
+            if(newZoom > 1 && newZoom < 8) {
+                interpolateZoom([width/2-l.x-adjust.x, height/2-l.y-adjust.y], newZoom);
+            }
         }else if(isPan==1){
             console.log("pan")
             viewCenter.x += deltaX;
-            viewCenter.y += deltaY;         
-            graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")");
+            viewCenter.y += deltaY;   
+            zoomed();     
         }else if((!pointInCircle(startPt1Center.x,startPt1Center.y,pt1.x,pt1.y,3) && !pointInCircle(startPt2Center.x,startPt2Center.y,pt2.x,pt2.y,3)) || Math.abs(curDist-startDist)>=5){
             console.log("not sure yet")
             if(Math.abs(curDist-startDist)>=5){
@@ -386,6 +431,21 @@
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
         // graphContainer.attr("transform","scale("+zoomScale(viewZoom)+")")        
+    }
+
+    function zoomed() {
+        graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+viewZoom+")");
+    }
+
+    function interpolateZoom(translate, scale) {
+        viewZoom = scale;
+        viewCenter.x += translate[0];
+        viewCenter.y += translate[1];
+        zoomed();
+    }
+
+    function location(p) {
+        return {x:(p.x-viewCenter.x)/viewZoom,y:(p.y-viewCenter.y)/viewZoom};
     }
 
     function handleTripleSwipeEvent(event) {
@@ -568,10 +628,16 @@
         return select;
     }
 
+    function convertToPoint(px,py) {
+        return {x: px / viewZoom - viewCenter.x/viewZoom, y: py / viewZoom - viewCenter.y/viewZoom};
+    }
+
     function getFocusNode(px,py) {
+        var pt = convertToPoint(px,py);
+        // console.log(pt);
         var select = movingNode;        
         d3.selectAll('.node').each(function(curNode){
-            if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
+            if(pointInCircle(curNode.x,curNode.y,pt.x,pt.y,50)) {
                 if(movingNode==null){
                     select = curNode;                    
                 }
@@ -581,15 +647,17 @@
     }
 
     main.dragNode = function(focusNode,event){
-        focusNode.px = event.center.x;
-        focusNode.x = event.center.x;
-        focusNode.py = event.center.y;
-        focusNode.y = event.center.y;
+        var pt = convertToPoint(event.center.x,event.center.y);
+        focusNode.px = pt.x;
+        focusNode.x = pt.x;
+        focusNode.py = pt.y;
+        focusNode.y = pt.y;
     }
 
     main.dragEnd = function(event){
-        px = event.center.x;
-        py = event.center.y;
+        var pt = convertToPoint(event.center.x,event.center.y);
+        px = pt.x;
+        py = pt.y;
         d3.selectAll('.node').each(function(curNode){
             if(pointInCircle(curNode.x,curNode.y,px,py,50)) {
                 curNode.fixed = true;
