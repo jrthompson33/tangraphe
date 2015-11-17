@@ -9,8 +9,8 @@
     main = {contextMenu: false};
     data = {};
 
-    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer ,panThreshold = 0, pinchThreshold =0;
-
+    var chart, svg, height, width, swipe, press, tick, timer, tapCount= 0, force, linkVar,nodeVar, movingNode = null, graphContainer ,panThreshold = 0, pinchThreshold =0;    
+    var isPinch=0,isPan=0;
     var nodeG, linkG, menuG;
     var startDistance = null;
 
@@ -162,16 +162,20 @@
             // console.log("touch down")         
         } else {
             // Check if this event moved enough, then start a swipe
-            if(!swipe && event.distance > moveThreshold) { // TODO: check the 2nd condition since it is invoking a touchend event (2nd case below) at the start of two-finger swipe
+            if(!swipe && (event.distance > moveThreshold || (press && press.touches == 2))) { // TODO: check the 2nd condition since it is invoking a touchend event (2nd case below) at the start of two-finger swipe
                 press.centers.push(event.center);
                 press.events.push(event);
-                swipe = {time: event.timeStamp, centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length};
+                swipe = {time: event.timeStamp, centers: press.centers.slice(0), events: press.events.slice(0), touches: event.pointers.length, firstPointers: event.pointers};
             }
             if (swipe) {
                 if(event.timeStamp > swipe.time) {
                     swipe.time = event.timeStamp;
                     swipe.centers.push(event.center);
                     swipe.events.push(event);
+                    if(event.pointers.length > swipe.touches) {
+                        // update first pointers for the event
+                        swipe.firstPointers = event.pointers;
+                    }
                 }
                 
                 // Always take the greater of the two
@@ -197,6 +201,9 @@
                 tapCount += 1;        
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(function() {
+                    if(!press) {
+                        return;
+                    }
                     press.time = event.timeStamp;
                     press.centers.push(event.center);
                     press.events.push(event);
@@ -251,7 +258,6 @@
     }
 
     function handleMultiPressEvent(event) {
-
     }
 
     function handleSingleSwipeEvent(event) {
@@ -317,8 +323,7 @@
         }
         var curPointX = event.center.x;
         var curPointY = event.center.y;
-        var curScale = event.scale;
-        
+        var curScale = event.scale;        
         var swipePointsLength = swipe.centers.length;
         
 
@@ -341,49 +346,42 @@
         var zoomDelta = curScale-prevScale;
         // offsetX = -(curPointX * zoomDelta);
         // offsetY = -(curPointY * zoomDelta);
-
-        //console.log(event.pointers.length)
-        viewZoom += zoomDelta;
-        viewCenter.x += deltaX;
-        viewCenter.y += deltaY; 
-        if(zoomDelta>0){
-            // console.log("pinch out");
-        }else{
-            // console.log("pinch in");
-        }
+        
         // console.log(event)
         // (Math.abs(event.center.x-twoFingerSwipeStartCenter.x) < 10) && (Math.abs(event.center.y-twoFingerSwipeStartCenter.y) < 10)
         var pt1 = {x:event.pointers[0].clientX,y:event.pointers[0].clientY};
         var pt2 = {x:event.pointers[1].clientX,y:event.pointers[1].clientY};
-        var d = getDistanceBetweenPoints(pt1,pt2);
+        
+        // console.log(swipe.events[1])
 
-       
-        var movementFromCenter = getDistanceBetweenPoints(event.center,swipe.centers[0]);
-            if(Math.abs(movementFromCenter)>=3){
-                console.log("pan")
+        var startPt1Center = {x:swipe.firstPointers[0].clientX,y:swipe.firstPointers[0].clientY};
+        var startPt2Center = {x:swipe.firstPointers[1].clientX,y:swipe.firstPointers[1].clientY};
+
+        var curDist = getDistanceBetweenPoints(pt1,pt2);
+        var startDist = getDistanceBetweenPoints(startPt1Center,startPt2Center);
+        var movementFromCenter = getDistanceBetweenPoints(event.center,swipe.centers[1]);
+
+        if(isPinch==1){
+            viewZoom += zoomDelta;
+            if(zoomDelta>0){
+                console.log("pinch out");
             }else{
-                console.log("pinch")
+                console.log("pinch in");
             }
-            // panThreshold += 1;
-            // console.log("pan")
-        // }else{
-            // console.log(panThreshold)
-            // if(panThreshold>15)
-            // {
-            //     pinchThreshold += 1;
-            // }            
-            // console.log("pinch")
-        // }        
-        // if(pinchThreshold>0){
-        //     console.log("pinch")
-        // }else{
-        //     console.log("pan")
-        // }
-        // if(){        
-            // console.log("pinch")
-        // }else{
-            // console.log("pan")            
-        // }
+            // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
+        }else if(isPan==1){
+            console.log("pan")
+            viewCenter.x += deltaX;
+            viewCenter.y += deltaY;         
+            graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")");
+        }else if((!pointInCircle(startPt1Center.x,startPt1Center.y,pt1.x,pt1.y,3) && !pointInCircle(startPt2Center.x,startPt2Center.y,pt2.x,pt2.y,3)) || Math.abs(curDist-startDist)>=5){
+            console.log("not sure yet")
+            if(Math.abs(curDist-startDist)>=5){
+                isPinch = 1;
+            }else if(Math.abs(movementFromCenter)>=8){
+                isPan = 1;
+            }            
+        }
 
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")")
         // graphContainer.attr("transform","translate("+viewCenter.x+","+viewCenter.y+")scale("+zoomScale(viewZoom)+")")
@@ -461,6 +459,8 @@
         pinchThreshold = 0;
         tapCount = 0;
         startCenter = null;
+        isPinch = 0;
+        isPan = 0;
     }
 
     function dismissContextMenu(){

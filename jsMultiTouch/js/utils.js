@@ -162,7 +162,7 @@ function pointReduction(points) {
     var last = points.length - 1;
 
     var simplified = [points[0]];
-    simplifyDPStep(points, 0, last, 2, simplified);
+    simplifyDPStep(points, 0, last, 1, simplified);
     simplified.push(points[last]);
 
     return simplified;
