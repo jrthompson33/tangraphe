@@ -144,9 +144,13 @@
             });
 
         // add and draw nodes
-        nodeVar = nodeG.selectAll(".node")
+        nodeVar = nodeG.selectAll(".nodeWrapper")
             .data(main.graph.nodes)
-            .enter().append("circle")
+            .enter()
+            .append("g")
+            .attr("class", "nodeWrapper");
+
+        nodeVar.append("circle")
             .attr('id', function(d) {
                 return d.id;
             })
@@ -184,12 +188,15 @@
                 return d.target.y;
             });
 
-        nodeVar.attr("cx", function(d) {
-                return d.x;
-            })
-            .attr("cy", function(d) {
-                return d.y;
-            });
+        nodeVar.attr("transform",function(d){
+            return "translate("+d.x+","+d.y+")"
+        });
+            // translate())("x", function(d) {
+            //     return d.x;
+            // })
+            // .attr("y", function(d) {
+            //     return d.y;
+            // });
     };
 
     // re-draw function for the visualization after data change (expand, collapse, delete etc.)
@@ -223,7 +230,7 @@
         exitingNodes.remove();
         var newNodes = nodeVar.enter();
 
-        newNodes.append("circle")
+        newNodes.append("g").attr("class", "nodeWrapper").append("circle")
             .attr("r", nodeRadius)
             .attr("class", "node")
             .attr("id", function(d) {
@@ -368,6 +375,7 @@
                     console.log("tap on node")
                     var focusNode = getFocusNode(event.center.x, event.center.y);
                     main.highlightNodeNetwork(focusNode);
+                    updatePanelInfo();
                 }
             } else if (main.contextMenu && hasClass(e, 'contextmenu-slice')) { // tap is on context menu
                 if (!e.__data__.hasOwnProperty('className')) {
@@ -378,6 +386,7 @@
                 // Handle if this is a new touch event - clear off the vis
                 handleNewTouch(event);
                 main.refreshGraphVis();
+                clearPanel();
             }
         } else {
             if (tapCount == 2) { // handle double tap event
@@ -732,6 +741,8 @@
         // Set the context menu flag to be true
         main.contextMenu = true;
 
+        updatePanelInfo();
+
         // Move the context menu to the correct point and show it
         d3.select('#contextmenu-' + type)
             .attr('transform', 'translate(' + (pt.x) + ',' + (pt.y) + ')')
@@ -787,6 +798,8 @@
         svgAddClass(linkQuery, 'selected');
         svgRemoveClass('.node', 'selected');
         dismissContextMenu();
+
+        updatePanelInfo();
         $('.swipetrace').remove();
     };
 
@@ -799,6 +812,8 @@
         nodeQuery = nodeQuery.substring(0, nodeQuery.length - 2);
         svgAddClass(nodeQuery, 'selected');
         svgRemoveClass('.link', 'selected');
+
+        updatePanelInfo();
         dismissContextMenu();
     };
 
@@ -838,7 +853,7 @@
 
         var deg = 2 * Math.PI / (list.length);
         for (var i = 0; i < (list.length); i++) {
-            var mid = Math.PI / 2 + i * deg;
+             var mid = Math.PI / 2 + i * deg;
             var start = mid - deg / 2;
             var end = mid + deg / 2;
             list[i].angle = mid;
@@ -1238,6 +1253,51 @@
         }
     }
 
+    function getNameById(nodeId){
+        for(var i=0;i<graphDb.nodes.length;i++){
+            var curNode = graphDb.nodes[i];
+            if(curNode.id == nodeId){
+                return curNode.name;
+            }
+        }
+    }
+
+    function updatePanelInfo(){
+        clearPanel();
+        var selectedNodeIds = [];
+        $('.node.selected').each(function(i, n) {
+            selectedNodeIds.push(n.__data__.id);
+        });  
+        d3.selectAll(".nodeWrapper").each(function(d){
+            if(selectedNodeIds.indexOf(d.id)>-1){
+                d3.select(this).append("text")
+                  .attr("class", "nodeLabel")
+                  .attr("dx", 25)
+                  .attr("dy", ".35em")
+                  .style("font-size", "18px")
+                  .style("fill", "red")
+                  .text(function(d) { return d.name; });                  
+            }
+        })            
+
+        $('.node.selected').each(function(i, n) {
+            $("#nodeinfo").append("<p>"+getNameById(n.__data__.id)+"</p>")
+        });  
+        
+        $('.link.selected').each(function(i, n) {
+            console.log(n)
+            var node1Id = n.__data__.source.id;
+            var node2Id = n.__data__.target.id;
+            $("#edgeinfo").append("<p>"+getNameById(node1Id) + " | " + getNameById(node2Id) +"</p>")
+            $("#edgeinfo").append("<p>"+n.__data__.synopsis+"</p>")
+        });
+    }
+
+    function clearPanel(){
+        $("#nodeinfo").html("")
+        d3.selectAll(".nodeLabel").remove();
+        $("#edgeinfo").html("")
+    }
     main.loadData = function(params) {
         // Load data for the visualization here
     };
